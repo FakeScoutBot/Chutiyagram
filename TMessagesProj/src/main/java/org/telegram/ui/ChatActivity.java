@@ -1247,6 +1247,7 @@ public class ChatActivity extends BaseFragment implements
 
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
+    public final static int OPTION_MESSAGE_DETAILS = 117;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -30899,6 +30900,12 @@ public class ChatActivity extends BaseFragment implements
             final ArrayList<Integer> options = new ArrayList<>();
             View optionsView = null;
 
+            if (message.getId() > 0 && message.messageOwner != null && message.messageOwner.date > 0 && (message.messageOwner.action == null || message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty)) {
+                items.add(LocaleController.getString(R.string.MessageDetails));
+                options.add(OPTION_MESSAGE_DETAILS);
+                icons.add(R.drawable.msg_info);
+            }
+
             if (AndroidUtilities.isAccessibilityScreenReaderEnabled() && message.messageOwner != null && message.messageOwner.from_id != null && message.messageOwner.from_id.user_id != getUserConfig().clientUserId && chatMode != MODE_SAVED) {
                 items.add(LocaleController.getString(R.string.OpenProfile));
                 options.add(OPTION_OPEN_PROFILE);
@@ -31056,8 +31063,10 @@ public class ChatActivity extends BaseFragment implements
             final boolean showSponsorInfo = !suggestEdit && !isEphemeral && selectedObject != null && selectedObject.isSponsored() && (selectedObject.sponsoredInfo != null || selectedObject.sponsoredAdditionalInfo != null || selectedObject.sponsoredUrl != null && !selectedObject.sponsoredUrl.startsWith("https://" + getMessagesController().linkPrefix));
             final boolean isReactionsAvailableFinal = !suggestEdit && isReactionsAvailable;
 
+            final boolean showMessageDetails = message.getId() > 0 && message.messageOwner != null && message.messageOwner.date > 0 && (message.messageOwner.action == null || message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty);
+
             int flags = 0;
-            if (isReactionsViewAvailable || showMessageSeen || showSponsorInfo) {
+            if (isReactionsViewAvailable || showMessageSeen || showSponsorInfo || showMessageDetails) {
                 flags |= ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_USE_SWIPEBACK;
             }
 
@@ -31077,6 +31086,45 @@ public class ChatActivity extends BaseFragment implements
                 .setPadding(dp(8)));
 
             boolean addGap = false;
+
+            final int[] messageDetailsForegroundIndex = new int[] { -1 };
+            if (showMessageDetails) {
+                java.text.SimpleDateFormat detailsDateFormat = new java.text.SimpleDateFormat("dd MMMM yyyy, HH:mm:ss", LocaleController.getInstance().getCurrentLocale());
+                detailsDateFormat.setTimeZone(java.util.TimeZone.getDefault());
+                final int detailsMessageId = message.getId();
+                final String detailsSentAt = detailsDateFormat.format(new java.util.Date((long) message.messageOwner.date * 1000L));
+
+                LinearLayout messageDetailsLayout = new LinearLayout(contentView.getContext());
+                messageDetailsLayout.setOrientation(LinearLayout.VERTICAL);
+                messageDetailsLayout.setLayoutParams(new FrameLayout.LayoutParams(AndroidUtilities.dp(200), LayoutHelper.WRAP_CONTENT));
+
+                ActionBarMenuSubItem detailsBackCell = new ActionBarMenuSubItem(getParentActivity(), true, false, themeDelegate);
+                detailsBackCell.setItemHeight(44);
+                detailsBackCell.setTextAndIcon(LocaleController.getString(R.string.Back), R.drawable.msg_arrow_back);
+                detailsBackCell.getTextView().setPadding(LocaleController.isRTL ? 0 : AndroidUtilities.dp(40), 0, LocaleController.isRTL ? AndroidUtilities.dp(40) : 0, 0);
+                detailsBackCell.setOnClickListener(v1 -> popupLayout.getSwipeBack().closeForeground());
+                messageDetailsLayout.addView(detailsBackCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+                ActionBarMenuSubItem detailsSentRow = new ActionBarMenuSubItem(getParentActivity(), false, false, themeDelegate);
+                detailsSentRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsSent), R.drawable.msg_info);
+                detailsSentRow.setSubtext(detailsSentAt);
+                messageDetailsLayout.addView(detailsSentRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+                ActionBarMenuSubItem detailsIdRow = new ActionBarMenuSubItem(getParentActivity(), false, true, themeDelegate);
+                detailsIdRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsId), R.drawable.msg_copy);
+                detailsIdRow.setSubtext(String.valueOf(detailsMessageId));
+                detailsIdRow.setOnClickListener(v1 -> {
+                    AndroidUtilities.addToClipboard(String.valueOf(detailsMessageId));
+                    createUndoView();
+                    if (undoView != null) {
+                        undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
+                    }
+                });
+                messageDetailsLayout.addView(detailsIdRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+                messageDetailsForegroundIndex[0] = popupLayout.addViewToSwipeBack(messageDetailsLayout);
+            }
+
 
             if (optionsView == null) {
                 if (showWelcomeMessageRevertOption(selectedObject)) {
@@ -31866,6 +31914,13 @@ public class ChatActivity extends BaseFragment implements
                         }
                         processSelectedOption(options.get(i));
                     });
+                    if (option == OPTION_MESSAGE_DETAILS && messageDetailsForegroundIndex[0] >= 0) {
+                        cell.setOnClickListener(e -> {
+                            if (popupLayout.getSwipeBack() != null) {
+                                popupLayout.getSwipeBack().openForeground(messageDetailsForegroundIndex[0]);
+                            }
+                        });
+                    }
                     if (option == OPTION_TRANSLATE) {
                         final boolean translateEnabled = getMessagesController().getTranslateController().isContextTranslateEnabled();
                         String toLangDefault = LocaleController.getInstance().getCurrentLocale().getLanguage();
@@ -33419,6 +33474,12 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
                 undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
+                break;
+            }
+            case OPTION_MESSAGE_DETAILS: {
+                // Handled earlier via cell.setOnClickListener override — opens the
+                // swipe-back sub-view within the same popup instead of a separate
+                // floating menu. This case is unreachable but kept as a safe no-op.
                 break;
             }
             case OPTION_SAVE_TO_GALLERY: {
