@@ -7408,7 +7408,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return true;
         } else if (position == idRow) {
             try {
-                AndroidUtilities.addToClipboard(String.valueOf(chatId != 0 ? chatId : userId));
+                String idText;
+                if (chatId != 0) {
+                    idText = (ChatObject.isChannel(currentChat) ? "-100" : "-") + chatId;
+                } else {
+                    idText = String.valueOf(userId);
+                }
+                AndroidUtilities.addToClipboard(idText);
                 BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.TextCopied), resourcesProvider).show();
             } catch (Exception e) {
                 FileLog.e(e);
@@ -10724,11 +10730,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (userInfo != null && !TextUtils.isEmpty(userInfo.about)) {
                     userInfoRow = rowCount++;
                 }
-                if (user != null && username != null) {
-                    usernameRow = rowCount++;
-                }
                 if (user != null) {
                     idRow = rowCount++;
+                }
+                if (user != null && username != null) {
+                    usernameRow = rowCount++;
                 }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
@@ -10877,6 +10883,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (actionsView == null) {
                     infoHeaderRow = rowCount++;
                 }
+                idRow = rowCount++;
                 if (chatInfo != null) {
                     if (!TextUtils.isEmpty(chatInfo.about)) {
                         channelInfoRow = rowCount++;
@@ -10888,7 +10895,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
                 }
-                idRow = rowCount++;
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
                 if (hasMusic || peerColor != null || actionsView == null) {
@@ -13522,17 +13528,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
                     } else if (position == idRow) {
                         long displayedId;
+                        String displayedIdText;
                         int dcId;
                         if (chatId != 0) {
                             displayedId = chatId;
+                            displayedIdText = (ChatObject.isChannel(currentChat) ? "-100" : "-") + chatId;
                             dcId = currentChat != null && currentChat.photo != null ? currentChat.photo.dc_id : -1;
                         } else {
                             TLRPC.User dcUser = getMessagesController().getUser(userId);
                             displayedId = userId;
+                            displayedIdText = String.valueOf(displayedId);
                             dcId = dcUser != null && dcUser.photo != null ? dcUser.photo.dc_id : -1;
                         }
                         String dcCaption = dcId > 0 ? ("DC: " + dcId) : "DC: —";
-                        detailCell.setTextAndValue(String.valueOf(displayedId), dcCaption, false);
+                        detailCell.setTextAndValue(displayedIdText, dcCaption, false);
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
