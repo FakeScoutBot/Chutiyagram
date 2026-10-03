@@ -36604,12 +36604,11 @@ public class ChatActivity extends BaseFragment implements
         }
         boolean noforwards = isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
         if (url instanceof URLSpanMono) {
-            if (!noforwards || getDialogId() == UserObject.VERIFY) {
-                ((URLSpanMono) url).copyToClipboard();
-                UndoView undoView = getUndoView();
-                if (undoView != null) {
-                    undoView.showWithAction(0, UndoView.ACTION_TEXT_COPIED, null);
-                }
+            // Tap-to-copy for inline code works even when forwarding is restricted.
+            ((URLSpanMono) url).copyToClipboard();
+            UndoView undoView = getUndoView();
+            if (undoView != null) {
+                undoView.showWithAction(0, UndoView.ACTION_TEXT_COPIED, null);
             }
             if (longPress && cell != null) {
                 cell.resetPressedLink(-1);
