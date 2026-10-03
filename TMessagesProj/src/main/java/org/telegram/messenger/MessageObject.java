@@ -1061,7 +1061,8 @@ public class MessageObject {
         }
 
         public void layoutCode(String lng, int codeLength, boolean noforwards) {
-            hasCodeCopyButton = codeLength >= 75 && !noforwards;
+            // "Copy code" button is shown even when forwarding is restricted.
+            hasCodeCopyButton = codeLength >= 75;
             if (hasCodeCopyButton) {
                 copyText = new Text(getString(R.string.CopyCode).toUpperCase(), SharedConfig.fontSize - 3, AndroidUtilities.bold());
                 copyIcon = ApplicationLoader.applicationContext.getResources().getDrawable(R.drawable.msg_copy).mutate();
