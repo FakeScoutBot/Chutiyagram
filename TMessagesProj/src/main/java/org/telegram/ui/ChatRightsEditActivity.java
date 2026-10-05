@@ -653,7 +653,8 @@ public class ChatRightsEditActivity extends BaseFragment implements Notification
         });
 
         listView.setOnItemClickListener((view, position) -> {
-            if (!canEdit && (!currentChat.creator || currentType != TYPE_ADMIN || position != anonymousRow)) {
+            // The user row (position 0) always opens the profile, even if we can't edit these rights.
+            if (!canEdit && position != 0 && (!currentChat.creator || currentType != TYPE_ADMIN || position != anonymousRow)) {
                 return;
             }
             if (position == sendMediaRow) {
@@ -1861,6 +1862,9 @@ public class ChatRightsEditActivity extends BaseFragment implements Notification
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int type = holder.getItemViewType();
             if (currentChat.creator && (currentType == TYPE_ADMIN || currentType == TYPE_ADD_BOT && asAdmin) && type == VIEW_TYPE_SWITCH_CELL && holder.getAdapterPosition() == anonymousRow) {
+                return true;
+            }
+            if (type == VIEW_TYPE_USER_CELL) {
                 return true;
             }
             if (!canEdit) {
