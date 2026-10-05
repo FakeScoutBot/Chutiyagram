@@ -1977,6 +1977,7 @@
     <string name="LeaveAffiliateLink">Revoke Link</string>
     <string name="LeaveAffiliateLinkAlert">Are you sure you want to revoke the link of **%1$s**?</string>
     <string name="CopyLink">Copy Link</string>
+    <string name="CopyStoryLink">Copy Story Link</string>
     <string name="CopyButtonText">Copy Title</string>
     <string name="CopyCallbackData">Copy Callback Data</string>
     <string name="CopyMail">Copy E-Mail</string>
