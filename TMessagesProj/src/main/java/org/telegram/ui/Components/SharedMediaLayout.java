@@ -3557,7 +3557,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                         return onItemLongClick(((SharedAudioCell) view).getMessage(), view, 0);
                     } else if (mediaPage.selectedType == TAB_GIF && view instanceof ContextLinkCell) {
                         return onItemLongClick((MessageObject) ((ContextLinkCell) view).getParentObject(), view, 0);
-                    } else if ((mediaPage.selectedType == TAB_PHOTOVIDEO || isAnyStoryPageType(mediaPage.selectedType) && canEditStories()) && view instanceof SharedPhotoVideoCell2) {
+                    } else if ((mediaPage.selectedType == TAB_PHOTOVIDEO || isAnyStoryPageType(mediaPage.selectedType)) && view instanceof SharedPhotoVideoCell2) {
                         MessageObject messageObject = ((SharedPhotoVideoCell2) view).getMessageObject();
                         if (messageObject != null) {
                             return onItemLongClick(messageObject, view, mediaPage.selectedType);
@@ -7606,6 +7606,27 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             if (storyItem == null) {
                 return false;
             }
+            animateStoryLongPress(view);
+
+            if (!canEditStories()) {
+                final ItemOptions options = ItemOptions.makeOptions(profileActivity, view, true);
+                options.add(R.drawable.msg_view_file, getString(R.string.ViewStory), () -> onItemClick(-1, view, item, a, getClosestTab()));
+                options.add(R.drawable.msg_link2, getString(R.string.CopyStoryLink), () -> {
+                    final String storyLink = getStoryLink(storyItem);
+                    if (storyLink == null) {
+                        BulletinFactory.of(profileActivity).createSimpleBulletin(R.raw.error, getString(R.string.UnknownError)).show();
+                        return;
+                    }
+                    AndroidUtilities.addToClipboard(storyLink);
+                    BulletinFactory.of(profileActivity).createCopyLinkBulletin().show();
+                    final TL_stories.TL_stories_exportStoryLink exportStoryLink = new TL_stories.TL_stories_exportStoryLink();
+                    exportStoryLink.id = storyItem.id;
+                    exportStoryLink.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialog_id);
+                    ConnectionsManager.getInstance(currentAccount).sendRequest(exportStoryLink, (response, error) -> {});
+                });
+                options.show();
+                return true;
+            }
 
             final HashSet<Integer> albumsSet = new HashSet<>();
             if (storyItem.albums != null) {
@@ -7714,6 +7735,38 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             options.show();
 
             return true;
+        }
+
+        private void animateStoryLongPress(View view) {
+            if (view == null) {
+                return;
+            }
+            view.animate().cancel();
+            view.animate()
+                    .scaleX(0.95f).scaleY(0.95f)
+                    .setDuration(90)
+                    .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
+                    .withEndAction(() -> view.animate()
+                            .scaleX(1f).scaleY(1f)
+                            .setDuration(160)
+                            .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
+                            .start())
+                    .start();
+        }
+
+        private String getStoryLink(TL_stories.StoryItem storyItem) {
+            if (storyItem == null) {
+                return null;
+            }
+            if (dialog_id > 0) {
+                final TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(dialog_id);
+                final String username = UserObject.getPublicUsername(user);
+                return username == null ? null : "https://t.me/" + username + "/s/" + storyItem.id;
+            } else {
+                final TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialog_id);
+                final String username = ChatObject.getPublicUsername(chat);
+                return username == null ? null : "https://t.me/" + username + "/s/" + storyItem.id;
+            }
         }
 
         selectedFiles[item.getDialogId() == dialog_id ? 0 : 1].put(item.getId(), item);
