@@ -1598,6 +1598,7 @@
     <string name="MessageDetailsMediaId">Media ID</string>
     <string name="MessageDetailsDcId">DC ID</string>
     <string name="MessageDetailsAlbumId">Album ID</string>
+    <string name="MessageDetailsEffectId">Effect ID</string>
     <string name="MessageDetailsStickerSetId">Sticker set ID</string>
     <string name="MessageDetailsStickerSetName">Sticker set</string>
     <string name="MessageScheduleSend">Send Now</string>

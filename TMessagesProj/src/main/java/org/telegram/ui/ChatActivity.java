@@ -45070,6 +45070,10 @@ public class ChatActivity extends BaseFragment implements
         if (!rows.isEmpty() && message.messageOwner.grouped_id != 0) {
             rows.add(new String[] { getString(R.string.MessageDetailsAlbumId), String.valueOf(message.messageOwner.grouped_id) });
         }
+        final long effectId = message.getEffectId();
+        if (effectId != 0) {
+            rows.add(new String[] { getString(R.string.MessageDetailsEffectId), String.valueOf(effectId) });
+        }
         return rows;
     }
 
