@@ -40273,9 +40273,11 @@ public class ChatActivity extends BaseFragment implements
             final TL_keyboard.TL_inlineButtonTypeUrl buttonTypeUrl = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeUrl.class);
             final TL_keyboard.TL_inlineButtonTypeCopy buttonTypeCopy = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeCopy.class);
             final TL_keyboard.TL_inlineButtonTypeCallback buttonTypeCallback = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeCallback.class);
+            final TL_keyboard.TL_inlineButtonTypeWebView buttonTypeWebView = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeWebView.class);
+            final TL_keyboard.TL_buttonTypeSimpleWebView buttonTypeSimpleWebView = TLKeyboardHelper.getType(button, TL_keyboard.TL_buttonTypeSimpleWebView.class);
 
             if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
-                    buttonTypeUrl == null && buttonTypeCopy == null &&
+                    buttonTypeUrl == null && buttonTypeCopy == null && buttonTypeWebView == null && buttonTypeSimpleWebView == null &&
                     !TLKeyboardHelper.isType(button, TL_keyboard.TL_inlineButtonTypeSwitchInline.class) &&
                     !TLKeyboardHelper.isType(button, TL_keyboard.TL_inlineButtonTypeCallback.class) &&
                     !TLKeyboardHelper.isType(button, TL_keyboard.TL_inlineButtonTypeGame.class) &&
@@ -40291,6 +40293,14 @@ public class ChatActivity extends BaseFragment implements
             }
             if (buttonTypeCallback != null) {
                 didLongPressCallbackButton(button.getText(), buttonTypeCallback.data);
+                try {
+                    cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                } catch (Exception ignore) {}
+                return;
+            }
+            if (buttonTypeWebView != null || buttonTypeSimpleWebView != null) {
+                // Web app buttons: same long-press menu as URL buttons (URL as title, Open / Copy).
+                openClickableLink(null, buttonTypeWebView != null ? buttonTypeWebView.url : buttonTypeSimpleWebView.url, true, cell, cell.getMessageObject(), false);
                 try {
                     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception ignore) {}
