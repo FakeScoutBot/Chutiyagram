@@ -40241,6 +40241,7 @@ public class ChatActivity extends BaseFragment implements
 
             final TL_keyboard.TL_inlineButtonTypeUrl buttonTypeUrl = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeUrl.class);
             final TL_keyboard.TL_inlineButtonTypeCopy buttonTypeCopy = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeCopy.class);
+            final TL_keyboard.TL_inlineButtonTypeCallback buttonTypeCallback = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeCallback.class);
 
             if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
                     buttonTypeUrl == null && buttonTypeCopy == null &&
@@ -40255,6 +40256,13 @@ public class ChatActivity extends BaseFragment implements
 
             if (buttonTypeCopy != null) {
                 didLongPressCopyButton(buttonTypeCopy.copy_text);
+                return;
+            }
+            if (buttonTypeCallback != null) {
+                didLongPressCallbackButton(button.getText(), buttonTypeCallback.data);
+                try {
+                    cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                } catch (Exception ignore) {}
                 return;
             }
             if (buttonTypeUrl != null) {
@@ -44944,6 +44952,52 @@ public class ChatActivity extends BaseFragment implements
         builder.setItems(new CharSequence[] { getString(R.string.Copy) }, (dialog, which) -> {
             AndroidUtilities.addToClipboard(text);
             BulletinFactory.of(ChatActivity.this).createCopyBulletin(formatString(R.string.ExactTextCopied, text)).show();
+        });
+        showDialog(builder.create());
+    }
+
+    private static String callbackDataToString(byte[] data) {
+        if (data == null || data.length == 0) {
+            return "";
+        }
+        try {
+            final String str = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(data)).toString();
+            boolean printable = true;
+            for (int i = 0; i < str.length(); i++) {
+                if (Character.isISOControl(str.charAt(i))) {
+                    printable = false;
+                    break;
+                }
+            }
+            if (printable) {
+                return str;
+            }
+        } catch (Exception ignore) {}
+        return Utilities.bytesToHex(data);
+    }
+
+    public void didLongPressCallbackButton(String buttonText, byte[] callbackData) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final String text = buttonText == null ? "" : buttonText;
+        final String data = callbackDataToString(callbackData);
+        final boolean hasData = data.length() > 0;
+
+        final BottomSheet.Builder builder = new BottomSheet.Builder(getParentActivity(), false, themeDelegate);
+        builder.setTitle(text);
+        builder.setTitleMultipleLines(true);
+        final CharSequence[] items = hasData
+            ? new CharSequence[] { getString(R.string.CopyButtonText), getString(R.string.CopyCallbackData) }
+            : new CharSequence[] { getString(R.string.CopyButtonText) };
+        builder.setItems(items, (dialog, which) -> {
+            final String copied = which == 0 ? text : data;
+            AndroidUtilities.addToClipboard(copied);
+            final String shown = copied.length() > 100 ? copied.substring(0, 100) + "…" : copied;
+            BulletinFactory.of(ChatActivity.this).createCopyBulletin(formatString(R.string.ExactTextCopied, shown)).show();
         });
         showDialog(builder.create());
     }
