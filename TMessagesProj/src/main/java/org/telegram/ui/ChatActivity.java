@@ -136,6 +136,7 @@ import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.BotApiFileId;
 import org.telegram.messenger.BotForumHelper;
 import org.telegram.messenger.BotInlineKeyboard;
 import org.telegram.messenger.BotWebViewVibrationEffect;
@@ -31100,12 +31101,16 @@ public class ChatActivity extends BaseFragment implements
                 detailsBackCell.setOnClickListener(v1 -> popupLayout.getSwipeBack().closeForeground());
                 messageDetailsLayout.addView(detailsBackCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
+                final LinearLayout detailsRows = new LinearLayout(contentView.getContext());
+                detailsRows.setOrientation(LinearLayout.VERTICAL);
+                final ArrayList<String[]> detailsMediaRows = getMessageMediaDetails(message);
+
                 ActionBarMenuSubItem detailsSentRow = new ActionBarMenuSubItem(getParentActivity(), false, false, themeDelegate);
                 detailsSentRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsSent), R.drawable.msg_info);
                 detailsSentRow.setSubtext(detailsSentAt);
-                messageDetailsLayout.addView(detailsSentRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+                detailsRows.addView(detailsSentRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-                ActionBarMenuSubItem detailsIdRow = new ActionBarMenuSubItem(getParentActivity(), false, true, themeDelegate);
+                ActionBarMenuSubItem detailsIdRow = new ActionBarMenuSubItem(getParentActivity(), false, detailsMediaRows.isEmpty(), themeDelegate);
                 detailsIdRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsId), R.drawable.msg_copy);
                 detailsIdRow.setSubtext(String.valueOf(detailsMessageId));
                 detailsIdRow.setOnClickListener(v1 -> {
@@ -31115,7 +31120,33 @@ public class ChatActivity extends BaseFragment implements
                         undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
                     }
                 });
-                messageDetailsLayout.addView(detailsIdRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+                detailsRows.addView(detailsIdRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+                // Media messages: file id, unique id and every other id we can derive (all copyable).
+                for (int i = 0; i < detailsMediaRows.size(); i++) {
+                    final String rowValue = detailsMediaRows.get(i)[1];
+                    ActionBarMenuSubItem mediaRow = new ActionBarMenuSubItem(getParentActivity(), false, i == detailsMediaRows.size() - 1, themeDelegate);
+                    mediaRow.setTextAndIcon(detailsMediaRows.get(i)[0], R.drawable.msg_copy);
+                    mediaRow.setSubtext(abbreviateDetailsValue(rowValue));
+                    mediaRow.setOnClickListener(v1 -> {
+                        AndroidUtilities.addToClipboard(rowValue);
+                        createUndoView();
+                        if (undoView != null) {
+                            undoView.showWithAction(0, UndoView.ACTION_TEXT_COPIED, null);
+                        }
+                    });
+                    detailsRows.addView(mediaRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+                }
+
+                final android.widget.ScrollView detailsScroll = new android.widget.ScrollView(contentView.getContext()) {
+                    @Override
+                    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                        super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(300), MeasureSpec.AT_MOST));
+                    }
+                };
+                detailsScroll.setVerticalScrollBarEnabled(false);
+                detailsScroll.addView(detailsRows, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+                messageDetailsLayout.addView(detailsScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
                 messageDetailsForegroundIndex[0] = popupLayout.addViewToSwipeBack(messageDetailsLayout);
             }
@@ -44954,6 +44985,92 @@ public class ChatActivity extends BaseFragment implements
             BulletinFactory.of(ChatActivity.this).createCopyBulletin(formatString(R.string.ExactTextCopied, text)).show();
         });
         showDialog(builder.create());
+    }
+
+    private static String abbreviateDetailsValue(String value) {
+        if (value == null || value.length() <= 24) {
+            return value;
+        }
+        return value.substring(0, 14) + "…" + value.substring(value.length() - 6);
+    }
+
+    /** Label/value pairs for the ids of a media message. Empty for plain text messages. */
+    private ArrayList<String[]> getMessageMediaDetails(MessageObject message) {
+        final ArrayList<String[]> rows = new ArrayList<>();
+        if (message == null || message.messageOwner == null) {
+            return rows;
+        }
+        TLRPC.Document doc = message.getDocument();
+        if (doc != null && (doc instanceof TLRPC.TL_documentEmpty || doc.id == 0)) {
+            doc = null;
+        }
+        TLRPC.Photo photo = null;
+        if (doc == null) {
+            final TLRPC.MessageMedia media = MessageObject.getMedia(message.messageOwner);
+            if (media != null) {
+                if (media.photo != null) {
+                    photo = media.photo;
+                } else if (media.webpage != null && media.webpage.photo != null) {
+                    photo = media.webpage.photo;
+                }
+            }
+            if (photo != null && (photo instanceof TLRPC.TL_photoEmpty || photo.id == 0)) {
+                photo = null;
+            }
+        }
+
+        if (doc != null) {
+            boolean sticker = false, animated = false, audio = false, voice = false, video = false, round = false;
+            for (int i = 0; i < doc.attributes.size(); i++) {
+                final TLRPC.DocumentAttribute attr = doc.attributes.get(i);
+                if (attr instanceof TLRPC.TL_documentAttributeSticker) {
+                    sticker = true;
+                } else if (attr instanceof TLRPC.TL_documentAttributeAnimated) {
+                    animated = true;
+                } else if (attr instanceof TLRPC.TL_documentAttributeAudio) {
+                    audio = true;
+                    voice = ((TLRPC.TL_documentAttributeAudio) attr).voice;
+                } else if (attr instanceof TLRPC.TL_documentAttributeVideo) {
+                    video = true;
+                    round = ((TLRPC.TL_documentAttributeVideo) attr).round_message;
+                }
+            }
+            final int type = sticker ? BotApiFileId.TYPE_STICKER
+                : animated ? BotApiFileId.TYPE_ANIMATION
+                : audio ? (voice ? BotApiFileId.TYPE_VOICE : BotApiFileId.TYPE_AUDIO)
+                : video ? (round ? BotApiFileId.TYPE_VIDEO_NOTE : BotApiFileId.TYPE_VIDEO)
+                : BotApiFileId.TYPE_DOCUMENT;
+            rows.add(new String[] { getString(R.string.MessageDetailsFileId), BotApiFileId.forDocument(type, doc.dc_id, doc.file_reference, doc.id, doc.access_hash) });
+            rows.add(new String[] { getString(R.string.MessageDetailsUniqueId), BotApiFileId.uniqueId(doc.id) });
+            rows.add(new String[] { getString(R.string.MessageDetailsMediaId), String.valueOf(doc.id) });
+            rows.add(new String[] { getString(R.string.MessageDetailsDcId), String.valueOf(doc.dc_id) });
+            if (sticker) {
+                final TLRPC.InputStickerSet set = MessageObject.getInputStickerSet(doc);
+                if (set instanceof TLRPC.TL_inputStickerSetID) {
+                    rows.add(new String[] { getString(R.string.MessageDetailsStickerSetId), String.valueOf(set.id) });
+                } else if (set instanceof TLRPC.TL_inputStickerSetShortName && !TextUtils.isEmpty(set.short_name)) {
+                    rows.add(new String[] { getString(R.string.MessageDetailsStickerSetName), set.short_name });
+                }
+            }
+        } else if (photo != null) {
+            TLRPC.PhotoSize best = null;
+            for (int i = 0; i < photo.sizes.size(); i++) {
+                final TLRPC.PhotoSize size = photo.sizes.get(i);
+                if (size instanceof TLRPC.TL_photoSize || size instanceof TLRPC.TL_photoSizeProgressive) {
+                    if (best == null || size.w * size.h >= best.w * best.h) {
+                        best = size;
+                    }
+                }
+            }
+            rows.add(new String[] { getString(R.string.MessageDetailsFileId), BotApiFileId.forPhoto(photo.dc_id, photo.file_reference, photo.id, photo.access_hash, best != null ? best.type : "x") });
+            rows.add(new String[] { getString(R.string.MessageDetailsUniqueId), BotApiFileId.uniqueId(photo.id) });
+            rows.add(new String[] { getString(R.string.MessageDetailsMediaId), String.valueOf(photo.id) });
+            rows.add(new String[] { getString(R.string.MessageDetailsDcId), String.valueOf(photo.dc_id) });
+        }
+        if (!rows.isEmpty() && message.messageOwner.grouped_id != 0) {
+            rows.add(new String[] { getString(R.string.MessageDetailsAlbumId), String.valueOf(message.messageOwner.grouped_id) });
+        }
+        return rows;
     }
 
     private static String callbackDataToString(byte[] data) {

@@ -1593,6 +1593,13 @@
     <string name="MessageDetails">Details</string>
     <string name="MessageDetailsSent">Sent</string>
     <string name="MessageDetailsId">Message ID</string>
+    <string name="MessageDetailsFileId">File ID</string>
+    <string name="MessageDetailsUniqueId">File unique ID</string>
+    <string name="MessageDetailsMediaId">Media ID</string>
+    <string name="MessageDetailsDcId">DC ID</string>
+    <string name="MessageDetailsAlbumId">Album ID</string>
+    <string name="MessageDetailsStickerSetId">Sticker set ID</string>
+    <string name="MessageDetailsStickerSetName">Sticker set</string>
     <string name="MessageScheduleSend">Send Now</string>
     <string name="MessageSuggestionPublishNow">Publish Now</string>
     <string name="MessageScheduleEditTime">Reschedule</string>
