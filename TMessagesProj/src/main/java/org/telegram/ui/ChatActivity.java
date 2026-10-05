@@ -31106,7 +31106,7 @@ public class ChatActivity extends BaseFragment implements
                 final ArrayList<String[]> detailsMediaRows = getMessageMediaDetails(message);
 
                 ActionBarMenuSubItem detailsSentRow = new ActionBarMenuSubItem(getParentActivity(), false, false, themeDelegate);
-                detailsSentRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsSent), R.drawable.msg_info);
+                detailsSentRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsSent), R.drawable.msg_calendar2);
                 detailsSentRow.setSubtext(detailsSentAt);
                 detailsRows.addView(detailsSentRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
