@@ -53,6 +53,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.VelocityTracker;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
@@ -3561,6 +3562,11 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                         MessageObject messageObject = ((SharedPhotoVideoCell2) view).getMessageObject();
                         if (messageObject != null) {
                             return onItemLongClick(messageObject, view, mediaPage.selectedType);
+                        }
+                    } else if (isAnyStoryPageType(mediaPage.selectedType) && !canEditStories() && view instanceof SharedPhotoVideoCell2) {
+                        MessageObject messageObject = ((SharedPhotoVideoCell2) view).getMessageObject();
+                        if (messageObject != null) {
+                            return showStoryOptions(messageObject, view, mediaPage);
                         }
                     } else if (mediaPage.selectedType == TAB_RECOMMENDED_CHANNELS) {
                         channelRecommendationsAdapter.openPreview(position);
@@ -7904,6 +7910,41 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             }
         }
         updateForwardItem();
+    }
+
+    private boolean showStoryOptions(MessageObject messageObject, View view, MediaPage mediaPage) {
+        if (profileActivity.getParentActivity() == null) {
+            return false;
+        }
+        final StoriesAdapter adapter = storyAlbums_getStoriesAdapterByTabType(mediaPage.selectedType);
+        final StoriesController.StoriesList storiesList = adapter != null ? adapter.storiesList : null;
+        final int storyId = messageObject.storyItem != null ? messageObject.storyItem.id : messageObject.getId();
+        try {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+        } catch (Exception ignore) {}
+
+        // Same setup as the long-press menu on your own stories: HD preview in the scrim + same ItemOptions style.
+        if (view instanceof SharedPhotoVideoCell2) {
+            ((SharedPhotoVideoCell2) view).initFullSizeReceiver();
+        }
+        final ItemOptions options = ItemOptions.makeOptions(profileActivity, view, true);
+        options.add(R.drawable.msg_viewintopic, getString(R.string.ViewStory), () -> {
+            if (storiesList == null) {
+                return;
+            }
+            profileActivity.getOrCreateStoryViewer().open(getContext(), messageObject.getId(), storiesList, StoriesListPlaceProvider.of(mediaPage.listView).with(forward -> {
+                if (forward) {
+                    storiesList.load(false, 30);
+                }
+            }).addBottomClip(profileActivity instanceof ProfileActivity && ((ProfileActivity) profileActivity).myProfile ? dp(68) : 0));
+        });
+        options.add(R.drawable.msg_copy, getString(R.string.CopyStoryId), () -> {
+            final String id = String.valueOf(storyId);
+            AndroidUtilities.addToClipboard(id);
+            BulletinFactory.of(profileActivity).createCopyBulletin(LocaleController.formatString(R.string.ExactTextCopied, id)).show();
+        });
+        options.show();
+        return true;
     }
 
     private void openUrl(String link) {
