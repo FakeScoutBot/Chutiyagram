@@ -6700,6 +6700,7 @@
     <string name="NotificationChannelStory">%s shared a story</string>
     <string name="StoriesSoundEnabled">Stories</string>
     <string name="ViewStory">View Story</string>
+    <string name="DownloadStory">Download Story</string>
     <string name="CopyStoryId">Copy Story ID</string>
     <string name="StoryPeriodPremium_one">Subscribe to **Telegram Premium** to make your stories disappear after %d hour.</string>
     <string name="StoryPeriodPremium_other">Subscribe to **Telegram Premium** to make your stories disappear after %d hours.</string>

@@ -159,6 +159,7 @@ import org.telegram.ui.SelectStoriesBottomSheet;
 import org.telegram.ui.Stars.StarsController;
 import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
+import org.telegram.ui.Stories.StoryDownloader;
 import org.telegram.ui.Stories.UserListPoller;
 import org.telegram.ui.Stories.ViewsForPeerStoriesRequester;
 import org.telegram.ui.Stories.bots.BotPreviewsEditContainer;
@@ -7937,6 +7938,9 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                     storiesList.load(false, 30);
                 }
             }).addBottomClip(profileActivity instanceof ProfileActivity && ((ProfileActivity) profileActivity).myProfile ? dp(68) : 0));
+        });
+        options.add(R.drawable.msg_gallery, getString(R.string.DownloadStory), () -> {
+            StoryDownloader.download(profileActivity, messageObject.storyItem);
         });
         options.add(R.drawable.msg_copy, getString(R.string.CopyStoryId), () -> {
             final String id = String.valueOf(storyId);
