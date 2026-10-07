@@ -140,6 +140,7 @@ import org.telegram.ui.ActionBar.ActionBarPopupWindow;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
+import org.telegram.ui.Cells.VoiceChangerBoostCell;
 import org.telegram.ui.Cells.VoiceChangerPitchCell;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
@@ -1685,8 +1686,13 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         pitchCell.bind();
         content.addView(pitchCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
+        VoiceChangerBoostCell boostCell = new VoiceChangerBoostCell(context);
+        boostCell.setColors(0, textColor, hintColor);
+        boostCell.bind();
+        content.addView(boostCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
         TextView hint = new TextView(context);
-        hint.setText("Negative values give a deeper voice, positive a higher one. Applied live and adds a small delay (about 50 ms) to what others hear.");
+        hint.setText("Negative values give a deeper voice, positive a higher one.");
         hint.setTextColor(hintColor);
         hint.setTextSize(13);
         content.addView(hint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, 21, 4, 21, 18));
@@ -1695,6 +1701,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
             SharedConfig.setVoiceChangerEnabled(!SharedConfig.voiceChangerEnabled);
             toggle.setChecked(SharedConfig.voiceChangerEnabled, true);
             pitchCell.bind();
+            boostCell.bind();
             updateVoiceChangerItem();
         });
 
