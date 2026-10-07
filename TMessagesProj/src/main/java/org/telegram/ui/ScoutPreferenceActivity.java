@@ -176,9 +176,9 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 case 1:
                     TextInfoPrivacyCell privacyCell = (TextInfoPrivacyCell) holder.itemView;
                     if (position == stealthModeDetailRow) {
-                        privacyCell.setText("When enabled, your online status, typing status, read receipts, and story views are hidden from other users as much as Telegram's protocol allows. Sending a message will still reveal that you're online — that's a server-side restriction, not something a client can hide.\n\nForce Allow Screenshots overrides the screenshot-blocking that Telegram normally applies in secret chats and protected (no-forwards) content, so you can always take a screenshot regardless of the chat's restrictions.");
+                        privacyCell.setText("When enabled, your online status, typing status, read receipts, and story views are hidden from other users as much as Telegram's protocol allows. Sending a message will still reveal that you're online. That's a server-side restriction, not something a client can hide :)");
                     } else if (position == voiceChangerDetailRow) {
-                        privacyCell.setText("When enabled, every voice message you record is pitch-shifted before it is encoded and sent, so the original voice is never uploaded. Negative values give a deeper voice, positive values a higher one. The slider is applied to the next recording; a recording already in progress keeps the value it started with. Round video messages are not affected.");
+                        privacyCell.setText("Changes your voice in voice messages. Lower values make your voice deeper, higher values make it higher.");
                     }
                     break;
                 case 2:
