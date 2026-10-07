@@ -13,6 +13,8 @@ namespace tgcalls {
 struct VoiceChangerCallState {
     std::atomic<bool> enabled{false};
     std::atomic<float> semitones{0.0f};
+    // Makeup gain in dB applied to the shifted voice (with a soft limiter), to compensate for it sounding quieter.
+    std::atomic<float> gainDb{0.0f};
 };
 
 inline VoiceChangerCallState &voiceChangerCallState() {
@@ -35,7 +37,7 @@ public:
 
     // Pitch shifts `samples` in place. Returns false (and leaves the samples untouched) when `semitones` is
     // effectively zero. A change of sample rate restarts the shifter.
-    bool process(float *samples, size_t numSamples, int sampleRate, float semitones);
+    bool process(float *samples, size_t numSamples, int sampleRate, float semitones, float gainDb = 0.0f);
 
     // Drops buffered audio. Call when the effect is switched off so it restarts clean when switched on again.
     void reset();

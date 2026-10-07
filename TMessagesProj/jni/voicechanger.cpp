@@ -101,9 +101,10 @@ JNIEXPORT jint Java_org_telegram_messenger_VoiceChanger_nativeFlush(JNIEnv *env,
 }
 
 // Live state for calls: read by the capture post-processor on every 10 ms frame, so changes apply mid-call.
-JNIEXPORT void Java_org_telegram_messenger_VoiceChanger_nativeSetCallState(JNIEnv *env, jclass clazz, jboolean enabled, jfloat semitones) {
+JNIEXPORT void Java_org_telegram_messenger_VoiceChanger_nativeSetCallState(JNIEnv *env, jclass clazz, jboolean enabled, jfloat semitones, jfloat gainDb) {
     tgcalls::VoiceChangerCallState &state = tgcalls::voiceChangerCallState();
     state.semitones.store(semitones, std::memory_order_relaxed);
+    state.gainDb.store(gainDb, std::memory_order_relaxed);
     state.enabled.store(enabled != JNI_FALSE, std::memory_order_relaxed);
 }
 
