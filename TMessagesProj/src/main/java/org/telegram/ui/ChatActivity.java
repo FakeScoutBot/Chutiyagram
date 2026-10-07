@@ -2925,6 +2925,7 @@ public class ChatActivity extends BaseFragment implements
             .add(NotificationCenter.didLoadSendAsPeers)
             .add(NotificationCenter.closeChatActivity)
             .add(NotificationCenter.messagesDeleted)
+            .add(NotificationCenter.messagesPreservedAsDeleted)
             .add(NotificationCenter.historyCleared)
             .add(NotificationCenter.messageReceivedByServer)
             .add(NotificationCenter.messageReceivedByAck)
@@ -22263,6 +22264,29 @@ public class ChatActivity extends BaseFragment implements
             removeUnreadPlane(true);
             if (updated && chatAdapter != null) {
                 chatAdapter.notifyDataSetChanged(false);
+            }
+        } else if (id == NotificationCenter.messagesPreservedAsDeleted) {
+            // Deleted by someone else but kept in the history: the message stays exactly where it is. Only mark it.
+            if (chatMode == MODE_SCHEDULED) {
+                return;
+            }
+            ArrayList<Integer> preservedMessages = (ArrayList<Integer>) args[0];
+            long preservedChannelId = (Long) args[1];
+            int preservedLoadIndex = 0;
+            if (ChatObject.isChannel(currentChat)) {
+                if (preservedChannelId == 0 && mergeDialogId != 0) {
+                    preservedLoadIndex = 1;
+                } else if (preservedChannelId != -dialog_id) {
+                    return;
+                }
+            } else if (preservedChannelId != 0) {
+                return;
+            }
+            for (int a = 0, N = preservedMessages.size(); a < N; a++) {
+                MessageObject preserved = messagesDict[preservedLoadIndex].get(preservedMessages.get(a));
+                if (preserved != null) {
+                    preserved.deletedLocally = true;
+                }
             }
         } else if (id == NotificationCenter.messagesDeleted) {
             boolean scheduled = (Boolean) args[2];

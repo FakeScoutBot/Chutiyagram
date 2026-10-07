@@ -298,6 +298,7 @@ public class SharedConfig {
     public static boolean stealthModeEnabled = false;
     public static boolean forceAllowScreenshots = false;
     public static boolean voiceChangerEnabled = false;
+    public static boolean keepDeletedMessages = false;
     public static int voiceChangerSemitones = VoiceChanger.DEFAULT_SEMITONES;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
@@ -641,6 +642,7 @@ public class SharedConfig {
             stealthModeEnabled = preferences.getBoolean("stealthModeEnabled", false);
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
             voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
+            keepDeletedMessages = preferences.getBoolean("keepDeletedMessages", false);
             voiceChangerSemitones = VoiceChanger.clamp(preferences.getInt("voiceChangerSemitones", VoiceChanger.DEFAULT_SEMITONES));
             directShareHash = preferences.getString("directShareHash2", null);
             useThreeLinesLayout = preferences.getBoolean("useThreeLinesLayout", false);
@@ -1284,6 +1286,15 @@ public class SharedConfig {
         editor.putBoolean("forceAllowScreenshots", forceAllowScreenshots);
         editor.apply();
         FlagSecureReason.updateAllWindows();
+    }
+
+    public static void setKeepDeletedMessages(boolean value) {
+        if (keepDeletedMessages == value) {
+            return;
+        }
+        keepDeletedMessages = value;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        preferences.edit().putBoolean("keepDeletedMessages", keepDeletedMessages).apply();
     }
 
     public static void setVoiceChangerEnabled(boolean value) {

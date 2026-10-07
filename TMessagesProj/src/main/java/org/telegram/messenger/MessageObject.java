@@ -224,6 +224,8 @@ public class MessageObject {
     public String monthKey;
     public boolean deleted;
     public boolean deletedByThanos;
+    // deleted by someone else, but kept in the local history (see DeletedMessagesStore)
+    public boolean deletedLocally;
     public float audioProgress;
     public float forceSeekTo = -1;
     public int audioProgressMs;
@@ -1925,6 +1927,9 @@ public class MessageObject {
         replyMessageObject = replyToMessage;
         eventId = eid;
         wasUnread = !messageOwner.out && messageOwner.unread;
+        if (SharedConfig.keepDeletedMessages && message.id > 0) {
+            deletedLocally = DeletedMessagesStore.getInstance(accountNum).isDeleted(getDialogId(message), message.id);
+        }
 
         if (message.replyMessage != null) {
             replyMessageObject = new MessageObject(currentAccount, message.replyMessage, null, users, chats, sUsers, sChats, false, checkMediaExists, eid);
