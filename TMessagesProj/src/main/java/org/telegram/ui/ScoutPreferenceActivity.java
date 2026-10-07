@@ -199,7 +199,9 @@ public class ScoutPreferenceActivity extends BaseFragment {
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(84), MeasureSpec.EXACTLY));
+            // Always take the full row width: the RecyclerView hands out an AT_MOST (wrap_content) spec,
+            // which would shrink the cell to the width of the "Pitch" label and collapse the slider.
+            super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(84), MeasureSpec.EXACTLY));
         }
 
         @Override
