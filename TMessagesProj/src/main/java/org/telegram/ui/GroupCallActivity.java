@@ -1701,34 +1701,8 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         BottomSheet sheet = new BottomSheet.Builder(context).setCustomView(content).create();
         sheet.setBackgroundColor(background);
         sheet.fixNavigationBar(background);
-        applySheetNavigationBar(sheet, background);
         sheet.setOnDismissListener(d -> updateVoiceChangerItem());
         sheet.show();
-        // The window is fully attached only after show(): apply once more so the system bar can't fall back to a theme default.
-        applySheetNavigationBar(sheet, background);
-    }
-
-    /**
-     * Makes the system navigation bar of a call bottom sheet match the sheet background.
-     * BottomSheet.Builder() already starts an animated fixNavigationBar() towards the default gray, which races with ours,
-     * and on targetSdk 36 the bar is also tinted by the contrast scrim, so set everything explicitly and without animation.
-     */
-    private static void applySheetNavigationBar(BottomSheet sheet, int color) {
-        Window window = sheet.getWindow();
-        if (window == null) {
-            return;
-        }
-        AndroidUtilities.setNavigationBarColor(sheet, color, false); // also cancels the pending animator
-        try {
-            if (Build.VERSION.SDK_INT >= 28) {
-                window.setNavigationBarDividerColor(0);
-            }
-            if (Build.VERSION.SDK_INT >= 29) {
-                window.setNavigationBarContrastEnforced(false);
-            }
-        } catch (Throwable ignore) {
-        }
-        AndroidUtilities.setLightNavigationBar(sheet, AndroidUtilities.computePerceivedBrightness(color) > .721f);
     }
 
     private void updateItems() {
