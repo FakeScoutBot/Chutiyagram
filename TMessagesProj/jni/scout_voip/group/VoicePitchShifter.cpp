@@ -11,10 +11,6 @@ namespace tgcalls {
 namespace {
 
 constexpr float kInt16Scale = 32768.0f;
-// Soft limiter used with the makeup gain: below the knee the signal is untouched, above it it is compressed
-// smoothly towards full scale so boosted peaks never hard clip.
-constexpr float kLimiterKnee = 22000.0f;
-constexpr float kFullScale = 32767.0f;
 constexpr float kMinSemitones = 0.01f;
 // Hard cap on the adaptive delay so a stalled burst can never grow the latency without bound.
 constexpr size_t kMaxExtraDelayMs = 120;
@@ -88,7 +84,7 @@ size_t VoicePitchShifter::latencySamples() const {
     return (size_t) _impl->st.getSetting(SETTING_INITIAL_LATENCY) + _impl->startThreshold;
 }
 
-bool VoicePitchShifter::process(float *samples, size_t numSamples, int sampleRate, float semitones, float gainDb) {
+bool VoicePitchShifter::process(float *samples, size_t numSamples, int sampleRate, float semitones) {
     Impl &d = *_impl;
     if (samples == nullptr || numSamples == 0 || sampleRate <= 0) {
         return false;
@@ -148,18 +144,6 @@ bool VoicePitchShifter::process(float *samples, size_t numSamples, int sampleRat
     }
     for (size_t i = produced; i < numSamples; i++) {
         samples[i] = 0.0f;
-    }
-    if (gainDb > 0.05f) {
-        const float gain = std::pow(10.0f, gainDb / 20.0f);
-        for (size_t i = 0; i < produced; i++) {
-            float v = samples[i] * gain;
-            float a = std::fabs(v);
-            if (a > kLimiterKnee) {
-                float shaped = kLimiterKnee + (kFullScale - kLimiterKnee) * std::tanh((a - kLimiterKnee) / (kFullScale - kLimiterKnee));
-                v = v < 0 ? -shaped : shaped;
-            }
-            samples[i] = v;
-        }
     }
     d.compact();
     return true;

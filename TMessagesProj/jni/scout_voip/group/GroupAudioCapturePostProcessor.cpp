@@ -170,8 +170,7 @@ void AudioCapturePostProcessor::Process(webrtc::AudioBuffer *originalBuffer) {
                 originalBuffer->channels()[0],
                 originalBuffer->num_frames(),
                 _currentSampleRate,
-                voiceChanger.semitones.load(std::memory_order_relaxed),
-                voiceChanger.gainDb.load(std::memory_order_relaxed));
+                voiceChanger.semitones.load(std::memory_order_relaxed));
         } else if (_voiceChangerActive) {
             _voicePitchShifter.reset();
             _voiceChangerActive = false;
