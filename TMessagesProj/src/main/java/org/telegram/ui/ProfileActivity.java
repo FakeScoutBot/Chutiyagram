@@ -11271,6 +11271,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private MessagesController.PeerColor peerColor;
 
+    /**
+     * Status line of our own profile. Shows whatever the server reports for our account
+     * ("online", "last seen at 12:30", "last seen recently", ...), honoring the last seen privacy settings.
+     * Falls back to "online" only while no status has been received yet.
+     */
+    private String getOwnStatusText(TLRPC.User user) {
+        if (user != null && user.status != null) {
+            return LocaleController.formatUserStatus(currentAccount, user);
+        }
+        return LocaleController.getString(R.string.Online);
+    }
+
     private void updateProfileData(boolean reload) {
         if (avatarContainer == null || nameTextView == null || getParentActivity() == null) {
             return;
@@ -11391,7 +11403,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (userInfo != null && userInfo.stars_rating != null && userInfo.stars_rating.stars < 0) {
                         newString2 = getString(R.string.StarRatingLevelNegative).toLowerCase(Locale.ROOT);
                     } else {
-                        newString2 = LocaleController.getString(R.string.Online);
+                        newString2 = getOwnStatusText(user);
                     }
                 }
             } else if (user.id == UserObject.VERIFY) {
@@ -11597,7 +11609,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (userInfo != null && userInfo.stars_rating != null && userInfo.stars_rating.stars < 0) {
                     onlineTextView[3].setText(newString2 = getString(R.string.StarRatingLevelNegative).toLowerCase(Locale.ROOT));
                 } else {
-                    onlineTextView[3].setText(LocaleController.getString(R.string.Online));
+                    onlineTextView[3].setText(getOwnStatusText(user));
                 }
             } else {
                 if (user.photo != null && user.photo.personal && user.photo.has_video) {
