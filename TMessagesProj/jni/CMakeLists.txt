@@ -202,6 +202,7 @@ add_library(${NATIVE_LIB} SHARED
         secureid_ocr.cpp
         tde2e/bridge.cpp
         tests.cpp
+        voicechanger.cpp
 )
 
 target_compile_options(${NATIVE_LIB} PUBLIC
@@ -209,6 +210,21 @@ target_compile_options(${NATIVE_LIB} PUBLIC
 
 target_compile_definitions(${NATIVE_LIB} PUBLIC
         BSD=1 NULL=0 SOCKLEN_T=socklen_t ANDROID_NDK DISABLE_IMPORTGL AVOID_TABLES ANDROID_TILE_BASED_DECODE __STDC_CONSTANT_MACROS ANDROID_ARMV6_IDCT OPUS_BUILD FIXED_POINT USE_ALLOCA restrict= __EMX__ LOCALE_NOT_USED HAVE_LRINT HAVE_LRINTF)
+
+# SoundTouch (pitch shifting for the Voice Changer), LGPL-2.1
+target_sources(${NATIVE_LIB} PRIVATE
+        soundtouch/source/AAFilter.cpp
+        soundtouch/source/FIFOSampleBuffer.cpp
+        soundtouch/source/FIRFilter.cpp
+        soundtouch/source/InterpolateCubic.cpp
+        soundtouch/source/InterpolateLinear.cpp
+        soundtouch/source/InterpolateShannon.cpp
+        soundtouch/source/RateTransposer.cpp
+        soundtouch/source/SoundTouch.cpp
+        soundtouch/source/TDStretch.cpp
+        soundtouch/source/cpu_detect_x86.cpp)
+
+target_compile_definitions(${NATIVE_LIB} PRIVATE SOUNDTOUCH_DISABLE_X86_OPTIMIZATIONS)
 
 target_sources(${NATIVE_LIB} PRIVATE
 
@@ -220,6 +236,8 @@ target_sources(${NATIVE_LIB} PRIVATE
         third_party/xiph/ogg/src/framing.c)
 
 target_include_directories(${NATIVE_LIB} PUBLIC
+        soundtouch/include
+        soundtouch/source
         third_party/xiph/opus/include
         third_party/xiph/opus/silk
         third_party/xiph/opus/silk/fixed

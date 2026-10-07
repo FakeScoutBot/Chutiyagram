@@ -1,16 +1,21 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.graphics.Typeface;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.VoiceChanger;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -20,6 +25,7 @@ import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Components.SeekBarView;
 
 import java.util.ArrayList;
 
@@ -32,6 +38,10 @@ public class ScoutPreferenceActivity extends BaseFragment {
     private int stealthModeRow;
     private int screenshotsRow;
     private int stealthModeDetailRow;
+    private int voiceChangerSectionRow;
+    private int voiceChangerRow;
+    private int voicePitchRow;
+    private int voiceChangerDetailRow;
     private int rowCount;
 
     private void updateRows() {
@@ -40,6 +50,10 @@ public class ScoutPreferenceActivity extends BaseFragment {
         stealthModeRow = rowCount++;
         screenshotsRow = rowCount++;
         stealthModeDetailRow = rowCount++;
+        voiceChangerSectionRow = rowCount++;
+        voiceChangerRow = rowCount++;
+        voicePitchRow = rowCount++;
+        voiceChangerDetailRow = rowCount++;
     }
 
     @Override
@@ -97,6 +111,12 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 if (view instanceof TextCheckCell) {
                     ((TextCheckCell) view).setChecked(SharedConfig.forceAllowScreenshots);
                 }
+            } else if (position == voiceChangerRow) {
+                SharedConfig.setVoiceChangerEnabled(!SharedConfig.voiceChangerEnabled);
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(SharedConfig.voiceChangerEnabled);
+                }
+                listAdapter.notifyItemChanged(voicePitchRow);
             }
         });
 
@@ -114,6 +134,80 @@ public class ScoutPreferenceActivity extends BaseFragment {
         listView.setClipToPadding(false);
     }
 
+    private static String describeSemitones(int semitones) {
+        if (semitones == 0) {
+            return "Original";
+        }
+        return (semitones > 0 ? "+" : "") + semitones + (Math.abs(semitones) == 1 ? " semitone" : " semitones");
+    }
+
+    private class PitchCell extends FrameLayout {
+
+        private final TextView titleView;
+        private final TextView valueView;
+        private final SeekBarView seekBar;
+
+        public PitchCell(Context context) {
+            super(context);
+            setWillNotDraw(false);
+
+            titleView = new TextView(context);
+            titleView.setTextSize(16);
+            titleView.setTypeface(Typeface.DEFAULT);
+            titleView.setGravity(Gravity.LEFT);
+            titleView.setText("Pitch");
+            addView(titleView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 21, 12, 21, 0));
+
+            valueView = new TextView(context);
+            valueView.setTextSize(14);
+            valueView.setGravity(Gravity.RIGHT);
+            addView(valueView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 21, 14, 21, 0));
+
+            seekBar = new SeekBarView(context);
+            seekBar.setReportChanges(true);
+            seekBar.setDelegate(new SeekBarView.SeekBarViewDelegate() {
+                @Override
+                public void onSeekBarDrag(boolean stop, float progress) {
+                    int semitones = Math.round(VoiceChanger.MIN_SEMITONES + progress * (VoiceChanger.MAX_SEMITONES - VoiceChanger.MIN_SEMITONES));
+                    SharedConfig.setVoiceChangerSemitones(semitones);
+                    valueView.setText(describeSemitones(SharedConfig.voiceChangerSemitones));
+                }
+
+                @Override
+                public void onSeekBarPressed(boolean pressed) {
+                }
+
+                @Override
+                public int getStepsCount() {
+                    return VoiceChanger.MAX_SEMITONES - VoiceChanger.MIN_SEMITONES;
+                }
+            });
+            addView(seekBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38, Gravity.LEFT | Gravity.TOP, 6, 40, 6, 0));
+        }
+
+        public void bind() {
+            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteValueText));
+            boolean enabled = SharedConfig.voiceChangerEnabled;
+            setAlpha(enabled ? 1f : 0.5f);
+            seekBar.setEnabled(enabled);
+            seekBar.setClickable(enabled);
+            seekBar.setProgress((SharedConfig.voiceChangerSemitones - VoiceChanger.MIN_SEMITONES) / (float) (VoiceChanger.MAX_SEMITONES - VoiceChanger.MIN_SEMITONES));
+            valueView.setText(describeSemitones(SharedConfig.voiceChangerSemitones));
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(84), MeasureSpec.EXACTLY));
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
+            return !SharedConfig.voiceChangerEnabled || super.onInterceptTouchEvent(ev);
+        }
+    }
+
     private class ListAdapter extends RecyclerListView.SelectionAdapter {
 
         private final Context mContext;
@@ -125,7 +219,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == stealthModeRow || position == screenshotsRow;
+            return position == stealthModeRow || position == screenshotsRow || position == voiceChangerRow;
         }
 
         @Override
@@ -144,6 +238,9 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 case 2:
                     view = new HeaderCell(mContext);
                     break;
+                case 4:
+                    view = new PitchCell(mContext);
+                    break;
                 case 3:
                 default:
                     view = new TextCheckCell(mContext);
@@ -159,12 +256,16 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     TextInfoPrivacyCell privacyCell = (TextInfoPrivacyCell) holder.itemView;
                     if (position == stealthModeDetailRow) {
                         privacyCell.setText("When enabled, your online status, typing status, read receipts, and story views are hidden from other users as much as Telegram's protocol allows. Sending a message will still reveal that you're online — that's a server-side restriction, not something a client can hide.\n\nForce Allow Screenshots overrides the screenshot-blocking that Telegram normally applies in secret chats and protected (no-forwards) content, so you can always take a screenshot regardless of the chat's restrictions.");
+                    } else if (position == voiceChangerDetailRow) {
+                        privacyCell.setText("When enabled, every voice message you record is pitch-shifted before it is encoded and sent, so the original voice is never uploaded. Negative values give a deeper voice, positive values a higher one. The slider is applied to the next recording; a recording already in progress keeps the value it started with. Round video messages are not affected.");
                     }
                     break;
                 case 2:
                     HeaderCell headerCell = (HeaderCell) holder.itemView;
                     if (position == stealthModeSectionRow) {
                         headerCell.setText("Stealth Mode");
+                    } else if (position == voiceChangerSectionRow) {
+                        headerCell.setText("Voice Changer");
                     }
                     break;
                 case 3:
@@ -173,17 +274,24 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         textCheckCell.setTextAndCheck("Stealth Mode", SharedConfig.stealthModeEnabled, true);
                     } else if (position == screenshotsRow) {
                         textCheckCell.setTextAndCheck("Force Allow Screenshots", SharedConfig.forceAllowScreenshots, false);
+                    } else if (position == voiceChangerRow) {
+                        textCheckCell.setTextAndCheck("Voice Changer", SharedConfig.voiceChangerEnabled, true);
                     }
+                    break;
+                case 4:
+                    ((PitchCell) holder.itemView).bind();
                     break;
             }
         }
 
         @Override
         public int getItemViewType(int position) {
-            if (position == stealthModeDetailRow) {
+            if (position == stealthModeDetailRow || position == voiceChangerDetailRow) {
                 return 1;
-            } else if (position == stealthModeSectionRow) {
+            } else if (position == stealthModeSectionRow || position == voiceChangerSectionRow) {
                 return 2;
+            } else if (position == voicePitchRow) {
+                return 4;
             } else if (position == stealthModeRow || position == screenshotsRow) {
                 return 3;
             }

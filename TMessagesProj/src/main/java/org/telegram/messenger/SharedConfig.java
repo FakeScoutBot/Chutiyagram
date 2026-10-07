@@ -297,6 +297,8 @@ public class SharedConfig {
     public static boolean noSoundHintShowed = false;
     public static boolean stealthModeEnabled = false;
     public static boolean forceAllowScreenshots = false;
+    public static boolean voiceChangerEnabled = false;
+    public static int voiceChangerSemitones = VoiceChanger.DEFAULT_SEMITONES;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
     public static boolean streamMkv = false;
@@ -638,6 +640,8 @@ public class SharedConfig {
             noSoundHintShowed = preferences.getBoolean("noSoundHintShowed", false);
             stealthModeEnabled = preferences.getBoolean("stealthModeEnabled", false);
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
+            voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
+            voiceChangerSemitones = VoiceChanger.clamp(preferences.getInt("voiceChangerSemitones", VoiceChanger.DEFAULT_SEMITONES));
             directShareHash = preferences.getString("directShareHash2", null);
             useThreeLinesLayout = preferences.getBoolean("useThreeLinesLayout", false);
             archiveHidden = preferences.getBoolean("archiveHidden", false);
@@ -1280,6 +1284,25 @@ public class SharedConfig {
         editor.putBoolean("forceAllowScreenshots", forceAllowScreenshots);
         editor.apply();
         FlagSecureReason.updateAllWindows();
+    }
+
+    public static void setVoiceChangerEnabled(boolean value) {
+        if (voiceChangerEnabled == value) {
+            return;
+        }
+        voiceChangerEnabled = value;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        preferences.edit().putBoolean("voiceChangerEnabled", voiceChangerEnabled).apply();
+    }
+
+    public static void setVoiceChangerSemitones(int value) {
+        value = VoiceChanger.clamp(value);
+        if (voiceChangerSemitones == value) {
+            return;
+        }
+        voiceChangerSemitones = value;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        preferences.edit().putInt("voiceChangerSemitones", voiceChangerSemitones).apply();
     }
 
     public static void toggleRaiseToSpeak() {
