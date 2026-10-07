@@ -1098,6 +1098,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
 
     private ArrayList<ByteBuffer> recordBuffers = new ArrayList<>();
     private ByteBuffer fileBuffer;
+    private VoiceChanger voiceChanger; // touched only on fileEncodingQueue
     public int recordBufferSize = 1280;
     public int sampleRate = 48000;
     private int sendAfterDone;
@@ -1109,6 +1110,57 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     private Runnable recordStartRunnable;
     private DispatchQueue recordQueue;
     private DispatchQueue fileEncodingQueue;
+    /** Called when a voice recording (or a resume after pause) starts: snapshots the Voice Changer settings. */
+    private void resetVoiceChanger() {
+        final int rate = sampleRate;
+        fileEncodingQueue.postRunnable(() -> {
+            if (voiceChanger != null) {
+                voiceChanger.release();
+                voiceChanger = null;
+            }
+            voiceChanger = VoiceChanger.createIfEnabled(rate);
+        });
+    }
+
+    private void releaseVoiceChanger() {
+        fileEncodingQueue.postRunnable(() -> {
+            if (voiceChanger != null) {
+                voiceChanger.release();
+                voiceChanger = null;
+            }
+        });
+    }
+
+    /** Pitch-shifted counterpart of the plain loop in recordRunnable: fills the 20 ms encoder frames from arbitrary sized chunks. */
+    private void writeShiftedToEncoder(ByteBuffer src, boolean last) {
+        while (src.hasRemaining()) {
+            int oldLimit = src.limit();
+            int n = Math.min(src.remaining(), fileBuffer.remaining());
+            src.limit(src.position() + n);
+            fileBuffer.put(src);
+            src.limit(oldLimit);
+            if (!fileBuffer.hasRemaining()) {
+                if (writeFrame(fileBuffer, fileBuffer.limit()) != 0) {
+                    recordTimeCount += fileBuffer.limit() / 2 / (sampleRate / 1000);
+                    writtenFrame++;
+                } else {
+                    FileLog.e("writing frame failed");
+                }
+                fileBuffer.rewind();
+            }
+        }
+        if (last && fileBuffer.position() > 0) {
+            int len = fileBuffer.position();
+            if (writeFrame(fileBuffer, len) != 0) {
+                recordTimeCount += fileBuffer.limit() / 2 / (sampleRate / 1000);
+                writtenFrame++;
+            } else {
+                FileLog.e("writing last frame failed");
+            }
+            fileBuffer.rewind();
+        }
+    }
+
     private Runnable recordRunnable = new Runnable() {
         @Override
         public void run() {
@@ -1166,6 +1218,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     final ByteBuffer finalBuffer = buffer;
                     final boolean flush = len != buffer.capacity();
                     fileEncodingQueue.postRunnable(() -> {
+                        if (voiceChanger != null) {
+                            writeShiftedToEncoder(voiceChanger.process(finalBuffer, flush), flush);
+                            recordQueue.postRunnable(() -> recordBuffers.add(finalBuffer));
+                            return;
+                        }
                         while (finalBuffer.hasRemaining()) {
                             int oldLimit = -1;
                             if (finalBuffer.remaining() > fileBuffer.remaining()) {
@@ -4629,6 +4686,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 audioRecorder.stop();
                 audioRecorder.release();
                 audioRecorder = null;
+                releaseVoiceChanger();
                 recordQueue.postRunnable(() -> {
                     stopRecord();
                     final TLRPC.TL_document audioToSend = recordingAudio;
@@ -4688,6 +4746,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                         requestRecordAudioFocus(true);
 //                        MediaDataController.getInstance(recordingCurrentAccount).pushDraftVoiceMessage(recordDialogId, recordTopicId, null);
 //
+                        resetVoiceChanger();
                         audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, recordBufferSize);
                         recordStartTime = System.currentTimeMillis();
                         writtenFrame = 0;
@@ -4765,7 +4824,8 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 }
 
                 audioRecorderPaused = false;
-                audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, recordBufferSize);
+                resetVoiceChanger();
+                        audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, recordBufferSize);
                 recordStartTime = System.currentTimeMillis();
                 recordTimeCount = 0;
                 writtenFrame = 0;
@@ -4785,6 +4845,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             } catch (Exception e) {
                 FileLog.e(e);
                 recordingAudio = null;
+                releaseVoiceChanger();
                 stopRecord();
                 AutoDeleteMediaTask.unlockFile(recordingAudioFile);
                 recordingAudioFile.delete();
@@ -4885,6 +4946,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 FileLog.d("stop recording internal filename " + (recordingAudioFile.getPath()));
             }
             fileEncodingQueue.postRunnable(() -> {
+                if (voiceChanger != null) {
+                    writeShiftedToEncoder(voiceChanger.process(ByteBuffer.allocateDirect(0), true), true);
+                    voiceChanger.release();
+                    voiceChanger = null;
+                }
                 stopRecord();
                 final File recordingAudioFileToSend = joinRecord(recordingPrevAudioFileToSend_, recordingAudioFileToSend_, audioToSend);
                 if (recordingAudioFileToSend == null) {
@@ -4939,6 +5005,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 });
             });
         } else {
+            releaseVoiceChanger();
             AutoDeleteMediaTask.unlockFile(recordingAudioFile);
             if (recordingAudioFile != null) {
                 recordingAudioFile.delete();
