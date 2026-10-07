@@ -15,11 +15,6 @@ public class VoiceChanger {
     public static final int MAX_SEMITONES = 12;
     public static final int DEFAULT_SEMITONES = -4;
 
-    // Makeup gain for calls only (the shifted voice tends to sound quieter on the other side).
-    public static final int MIN_GAIN_DB = 0;
-    public static final int MAX_GAIN_DB = 12;
-    public static final int DEFAULT_GAIN_DB = 6;
-
     private static final int FLUSH_CAPACITY = 48000 * 2; // up to 1 second of 48 kHz PCM16
 
     static {
@@ -37,7 +32,7 @@ public class VoiceChanger {
 
     private static native void nativeDestroy(long handle);
 
-    private static native void nativeSetCallState(boolean enabled, float semitones, float gainDb);
+    private static native void nativeSetCallState(boolean enabled, float semitones);
 
     private long handle;
     private ByteBuffer out;
@@ -66,7 +61,7 @@ public class VoiceChanger {
      */
     public static void syncCallState() {
         try {
-            nativeSetCallState(SharedConfig.voiceChangerEnabled, clamp(SharedConfig.voiceChangerSemitones), clampGain(SharedConfig.voiceChangerGainDb));
+            nativeSetCallState(SharedConfig.voiceChangerEnabled, clamp(SharedConfig.voiceChangerSemitones));
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -77,14 +72,6 @@ public class VoiceChanger {
             return "Original";
         }
         return (semitones > 0 ? "+" : "") + semitones + (Math.abs(semitones) == 1 ? " semitone" : " semitones");
-    }
-
-    public static String describeGain(int gainDb) {
-        return gainDb <= 0 ? "Off" : "+" + gainDb + " dB";
-    }
-
-    public static int clampGain(int gainDb) {
-        return Math.max(MIN_GAIN_DB, Math.min(MAX_GAIN_DB, gainDb));
     }
 
     public static int clamp(int semitones) {

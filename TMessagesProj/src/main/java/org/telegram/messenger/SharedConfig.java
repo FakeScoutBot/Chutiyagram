@@ -299,7 +299,6 @@ public class SharedConfig {
     public static boolean forceAllowScreenshots = false;
     public static boolean voiceChangerEnabled = false;
     public static int voiceChangerSemitones = VoiceChanger.DEFAULT_SEMITONES;
-    public static int voiceChangerGainDb = VoiceChanger.DEFAULT_GAIN_DB;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
     public static boolean streamMkv = false;
@@ -643,7 +642,6 @@ public class SharedConfig {
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
             voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
             voiceChangerSemitones = VoiceChanger.clamp(preferences.getInt("voiceChangerSemitones", VoiceChanger.DEFAULT_SEMITONES));
-            voiceChangerGainDb = VoiceChanger.clampGain(preferences.getInt("voiceChangerGainDb", VoiceChanger.DEFAULT_GAIN_DB));
             directShareHash = preferences.getString("directShareHash2", null);
             useThreeLinesLayout = preferences.getBoolean("useThreeLinesLayout", false);
             archiveHidden = preferences.getBoolean("archiveHidden", false);
@@ -1306,17 +1304,6 @@ public class SharedConfig {
         voiceChangerSemitones = value;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         preferences.edit().putInt("voiceChangerSemitones", voiceChangerSemitones).apply();
-        VoiceChanger.syncCallState();
-    }
-
-    public static void setVoiceChangerGainDb(int value) {
-        value = VoiceChanger.clampGain(value);
-        if (voiceChangerGainDb == value) {
-            return;
-        }
-        voiceChangerGainDb = value;
-        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        preferences.edit().putInt("voiceChangerGainDb", voiceChangerGainDb).apply();
         VoiceChanger.syncCallState();
     }
 
