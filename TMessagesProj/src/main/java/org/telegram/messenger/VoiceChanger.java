@@ -32,6 +32,8 @@ public class VoiceChanger {
 
     private static native void nativeDestroy(long handle);
 
+    private static native void nativeSetCallState(boolean enabled, float semitones);
+
     private long handle;
     private ByteBuffer out;
 
@@ -51,6 +53,25 @@ public class VoiceChanger {
             FileLog.e(e);
             return null;
         }
+    }
+
+    /**
+     * Pushes the current toggle and pitch to the native call engine. The call audio thread reads them on every
+     * frame, so this can be invoked at any time, including in the middle of a call.
+     */
+    public static void syncCallState() {
+        try {
+            nativeSetCallState(SharedConfig.voiceChangerEnabled, clamp(SharedConfig.voiceChangerSemitones));
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    public static String describe(int semitones) {
+        if (semitones == 0) {
+            return "Original";
+        }
+        return (semitones > 0 ? "+" : "") + semitones + (Math.abs(semitones) == 1 ? " semitone" : " semitones");
     }
 
     public static int clamp(int semitones) {

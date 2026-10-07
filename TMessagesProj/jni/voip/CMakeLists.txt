@@ -149,7 +149,9 @@ add_library(tgcalls STATIC
         tgcalls/tgcalls/group/AudioStreamingPartInternal.cpp
         tgcalls/tgcalls/group/AudioStreamingPartPersistentDecoder.cpp
         tgcalls/tgcalls/group/AVIOContextImpl.cpp
-        tgcalls/tgcalls/group/GroupAudioCapturePostProcessor.cpp
+        # Scout overlay: patched copy of upstream's postprocessor (voice changer) + pitch shifter
+        scout_voip/group/GroupAudioCapturePostProcessor.cpp
+        scout_voip/group/VoicePitchShifter.cpp
         tgcalls/tgcalls/group/GroupFrameTransformer.cpp
         tgcalls/tgcalls/group/GroupFrameTransformerTest.cpp
         tgcalls/tgcalls/group/GroupInstanceCustomImpl.cpp
@@ -1500,9 +1502,12 @@ target_compile_options(tgcalls PUBLIC
 set_target_properties(tgcalls PROPERTIES
         ANDROID_ARM_MODE arm)
 target_compile_definitions(tgcalls PUBLIC
-        WEBRTC_HAVE_DCSCTP RTC_DISABLE_TRACE_EVENTS WEBRTC_OPUS_SUPPORT_120MS_PTIME=1 BWE_TEST_LOGGING_COMPILE_TIME_ENABLE=0 ABSL_ALLOCATOR_NOTHROW=1 WEBRTC_NS_FLOAT HAVE_PTHREAD RTC_ENABLE_VP9 RTC_ENABLE_H265 WEBRTC_POSIX WEBRTC_LINUX WEBRTC_ANDROID WEBRTC_USE_H264 NDEBUG WEBRTC_HAVE_USRSCTP WEBRTC_HAVE_SCTP WEBRTC_APM_DEBUG_DUMP=0 WEBRTC_USE_BUILTIN_ISAC_FLOAT WEBRTC_OPUS_VARIABLE_COMPLEXITY=0 HAVE_NETINET_IN_H WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE HAVE_WEBRTC_VIDEO)
+        SOUNDTOUCH_DISABLE_X86_OPTIMIZATIONS WEBRTC_HAVE_DCSCTP RTC_DISABLE_TRACE_EVENTS WEBRTC_OPUS_SUPPORT_120MS_PTIME=1 BWE_TEST_LOGGING_COMPILE_TIME_ENABLE=0 ABSL_ALLOCATOR_NOTHROW=1 WEBRTC_NS_FLOAT HAVE_PTHREAD RTC_ENABLE_VP9 RTC_ENABLE_H265 WEBRTC_POSIX WEBRTC_LINUX WEBRTC_ANDROID WEBRTC_USE_H264 NDEBUG WEBRTC_HAVE_USRSCTP WEBRTC_HAVE_SCTP WEBRTC_APM_DEBUG_DUMP=0 WEBRTC_USE_BUILTIN_ISAC_FLOAT WEBRTC_OPUS_VARIABLE_COMPLEXITY=0 HAVE_NETINET_IN_H WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE HAVE_WEBRTC_VIDEO)
 target_include_directories(tgcalls PUBLIC
         ./
+        # must stay BEFORE tgcalls/tgcalls so "group/GroupAudioCapturePostProcessor.h" resolves to the overlay
+        scout_voip
+        soundtouch/include
         voip
         tgcalls
         tgcalls/tgcalls

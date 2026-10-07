@@ -277,6 +277,7 @@ target_sources(${NATIVE_LIB} PRIVATE
         third_party/xiph/ogg/src/framing.c)
 
 target_include_directories(${NATIVE_LIB} PUBLIC
+        scout_voip
         soundtouch/include
         soundtouch/source
         third_party/xiph/opus/include

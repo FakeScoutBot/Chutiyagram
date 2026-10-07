@@ -5,6 +5,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.VoiceChanger;
 import org.webrtc.ContextUtils;
 import org.webrtc.VideoSink;
 
@@ -77,6 +78,7 @@ public class NativeInstance {
         instance.cancelRequestBroadcastPartCallback = cancelRequestBroadcastPartCallback;
         instance.requestCurrentTimeCallback = requestCurrentTimeCallback;
         instance.isGroup = true;
+        VoiceChanger.syncCallState();
         instance.nativePtr = makeGroupNativeInstance(instance, logPath, SharedConfig.disableVoiceAudioEffects, videoCapturer, screencast, noiseSupression, isConference);
         return instance;
     }

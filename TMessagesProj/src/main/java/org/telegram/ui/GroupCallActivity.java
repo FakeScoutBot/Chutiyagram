@@ -114,6 +114,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.VoiceChanger;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
@@ -139,6 +140,7 @@ import org.telegram.ui.ActionBar.ActionBarPopupWindow;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
+import org.telegram.ui.Cells.VoiceChangerPitchCell;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
@@ -242,6 +244,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
     private static final int noise_item = 11;
     private static final int comments_enable_item = 12;
     private static final int comments_disable_item = 13;
+    private static final int voice_changer_item = 14;
     private static final int user_item_gap = 0;
 
     private static final int MUTE_BUTTON_STATE_UNMUTE = 0;
@@ -391,6 +394,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
     private final ActionBarMenuSubItem editTitleItem;
     private ActionBarMenuSubItem soundItem;
     private final ActionBarMenuSubItem noiseItem;
+    private ActionBarMenuSubItem voiceChangerItem;
     private final ActionBarMenuSubItem permissionItem;
     private final ActionBarMenuSubItem recordItem;
     private final ActionBarMenuSubItem screenItem;
@@ -1641,6 +1645,66 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         }
     }
 
+    private void updateVoiceChangerItem() {
+        if (voiceChangerItem == null) {
+            return;
+        }
+        voiceChangerItem.setSubtext(SharedConfig.voiceChangerEnabled ? VoiceChanger.describe(SharedConfig.voiceChangerSemitones) : "Off");
+    }
+
+    /** Live voice changer controls for the call: the same toggle and pitch as in Scout preferences. */
+    private void showVoiceChangerSheet(Context context) {
+        final int background = Theme.getColor(Theme.key_voipgroup_listViewBackgroundUnscrolled);
+        final int textColor = Theme.getColor(Theme.key_voipgroup_nameText);
+        final int hintColor = Theme.getColor(Theme.key_voipgroup_lastSeenText);
+
+        LinearLayout content = new LinearLayout(context);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = new TextView(context);
+        title.setText("Voice Changer");
+        title.setTextColor(textColor);
+        title.setTextSize(20);
+        title.setTypeface(AndroidUtilities.bold());
+        content.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, 21, 18, 21, 4));
+
+        FrameLayout toggleRow = new FrameLayout(context);
+        TextView toggleLabel = new TextView(context);
+        toggleLabel.setText("Change my voice in this call");
+        toggleLabel.setTextColor(textColor);
+        toggleLabel.setTextSize(16);
+        toggleRow.addView(toggleLabel, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.CENTER_VERTICAL, 21, 0, 80, 0));
+        org.telegram.ui.Components.Switch toggle = new org.telegram.ui.Components.Switch(context);
+        toggle.setColors(Theme.key_switchTrack, Theme.key_switchTrackChecked, Theme.key_windowBackgroundWhite, Theme.key_windowBackgroundWhite);
+        toggle.setChecked(SharedConfig.voiceChangerEnabled, false);
+        toggleRow.addView(toggle, LayoutHelper.createFrame(37, 20, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 21, 0, 21, 0));
+        content.addView(toggleRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 56));
+
+        VoiceChangerPitchCell pitchCell = new VoiceChangerPitchCell(context);
+        pitchCell.setColors(0, textColor, hintColor);
+        pitchCell.bind();
+        content.addView(pitchCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        TextView hint = new TextView(context);
+        hint.setText("Negative values give a deeper voice, positive a higher one. Applied live and adds a small delay (about 50 ms) to what others hear.");
+        hint.setTextColor(hintColor);
+        hint.setTextSize(13);
+        content.addView(hint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, 21, 4, 21, 18));
+
+        toggleRow.setOnClickListener(v -> {
+            SharedConfig.setVoiceChangerEnabled(!SharedConfig.voiceChangerEnabled);
+            toggle.setChecked(SharedConfig.voiceChangerEnabled, true);
+            pitchCell.bind();
+            updateVoiceChangerItem();
+        });
+
+        BottomSheet sheet = new BottomSheet.Builder(context).setCustomView(content).create();
+        sheet.setBackgroundColor(background);
+        sheet.fixNavigationBar(background);
+        sheet.setOnDismissListener(d -> updateVoiceChangerItem());
+        sheet.show();
+    }
+
     private void updateItems() {
         if (call == null || call.isScheduled()) {
             pipItem.setVisibility(View.INVISIBLE);
@@ -1675,9 +1739,12 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
 
         if (call == null || call.isScheduled() || participant != null && !participant.can_self_unmute && participant.muted) {
             noiseItem.setVisibility(View.GONE);
+            voiceChangerItem.setVisibility(View.GONE);
         } else {
             noiseItem.setVisibility(View.VISIBLE);
+            voiceChangerItem.setVisibility(View.VISIBLE);
         }
+        updateVoiceChangerItem();
         noiseItem.setIcon(SharedConfig.noiseSupression ? R.drawable.msg_noise_on : R.drawable.msg_noise_off);
         noiseItem.setSubtext(SharedConfig.noiseSupression ? getString(R.string.VoipNoiseCancellationEnabled) : getString(R.string.VoipNoiseCancellationDisabled));
 
@@ -2159,6 +2226,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                     accountSelectCell.setVisibility(View.GONE);
                     soundItem.setVisibility(View.GONE);
                     noiseItem.setVisibility(View.GONE);
+                    voiceChangerItem.setVisibility(View.GONE);
                     otherItem.forceUpdatePopupPosition();
                 } else if (id == edit_item) {
                     enterEventSent = false;
@@ -2304,6 +2372,8 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                         return;
                     }
                     service.setNoiseSupressionEnabled(SharedConfig.noiseSupression);
+                } else if (id == voice_changer_item) {
+                    showVoiceChangerSheet(context);
                 } else if (id == sound_item) {
                     VoIPService service = VoIPService.getSharedInstance();
                     if (service == null) {
@@ -4884,6 +4954,9 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         noiseItem = otherItem.addSubItem(noise_item, R.drawable.msg_noise_on, null, getString(R.string.VoipNoiseCancellation), true, false);
         noiseItem.setItemHeight(56);
 
+        voiceChangerItem = otherItem.addSubItem(voice_changer_item, R.drawable.msg_voice_unmuted, null, "Voice Changer", true, false);
+        voiceChangerItem.setItemHeight(56);
+
         soundItemDivider = otherItem.addDivider(ColorUtils.blendARGB(Theme.getColor(Theme.key_voipgroup_actionBar), Color.BLACK, 0.3f));
         ((ViewGroup.MarginLayoutParams) soundItemDivider.getLayoutParams()).topMargin = 0;
         ((ViewGroup.MarginLayoutParams) soundItemDivider.getLayoutParams()).bottomMargin = 0;
@@ -4906,6 +4979,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         disableComments.setColors(Theme.getColor(Theme.key_voipgroup_actionBarItems), Theme.getColor(Theme.key_voipgroup_actionBarItems));
         soundItem.setColors(Theme.getColor(Theme.key_voipgroup_actionBarItems), Theme.getColor(Theme.key_voipgroup_actionBarItems));
         noiseItem.setColors(Theme.getColor(Theme.key_voipgroup_actionBarItems), Theme.getColor(Theme.key_voipgroup_actionBarItems));
+        voiceChangerItem.setColors(Theme.getColor(Theme.key_voipgroup_actionBarItems), Theme.getColor(Theme.key_voipgroup_actionBarItems));
         leaveItem.setColors(Theme.getColor(Theme.key_voipgroup_leaveCallMenu), Theme.getColor(Theme.key_voipgroup_leaveCallMenu));
         inviteItem.setColors(Theme.getColor(Theme.key_voipgroup_actionBarItems), Theme.getColor(Theme.key_voipgroup_actionBarItems));
         editTitleItem.setColors(Theme.getColor(Theme.key_voipgroup_actionBarItems), Theme.getColor(Theme.key_voipgroup_actionBarItems));
