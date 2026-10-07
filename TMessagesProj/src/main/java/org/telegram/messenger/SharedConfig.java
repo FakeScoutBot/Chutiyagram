@@ -1293,6 +1293,7 @@ public class SharedConfig {
         voiceChangerEnabled = value;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         preferences.edit().putBoolean("voiceChangerEnabled", voiceChangerEnabled).apply();
+        VoiceChanger.syncCallState();
     }
 
     public static void setVoiceChangerSemitones(int value) {
@@ -1303,6 +1304,7 @@ public class SharedConfig {
         voiceChangerSemitones = value;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         preferences.edit().putInt("voiceChangerSemitones", voiceChangerSemitones).apply();
+        VoiceChanger.syncCallState();
     }
 
     public static void toggleRaiseToSpeak() {

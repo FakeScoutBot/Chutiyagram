@@ -161,6 +161,22 @@ void AudioCapturePostProcessor::Process(webrtc::AudioBuffer *originalBuffer) {
         }
     }
 
+    // Voice changer. Runs after echo cancellation (already done by APM) and RNNoise, directly on the buffer
+    // WebRTC will encode, and before screencast audio is mixed in, so that only the voice is altered.
+    {
+        VoiceChangerCallState &voiceChanger = voiceChangerCallState();
+        if (voiceChanger.enabled.load(std::memory_order_relaxed)) {
+            _voiceChangerActive = _voicePitchShifter.process(
+                originalBuffer->channels()[0],
+                originalBuffer->num_frames(),
+                _currentSampleRate,
+                voiceChanger.semitones.load(std::memory_order_relaxed));
+        } else if (_voiceChangerActive) {
+            _voicePitchShifter.reset();
+            _voiceChangerActive = false;
+        }
+    }
+
     if (_externalAudioSamplesMutex && _externalAudioSamples) {
         _externalAudioSamplesMutex->Lock();
         if (!_externalAudioSamples->empty()) {

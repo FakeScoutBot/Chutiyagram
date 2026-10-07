@@ -1,31 +1,26 @@
 package org.telegram.ui;
 
 import android.content.Context;
-import android.graphics.Typeface;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
-import org.telegram.messenger.VoiceChanger;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Cells.VoiceChangerPitchCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
-import org.telegram.ui.Components.SeekBarView;
 
 import java.util.ArrayList;
 
@@ -134,82 +129,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
         listView.setClipToPadding(false);
     }
 
-    private static String describeSemitones(int semitones) {
-        if (semitones == 0) {
-            return "Original";
-        }
-        return (semitones > 0 ? "+" : "") + semitones + (Math.abs(semitones) == 1 ? " semitone" : " semitones");
-    }
-
-    private class PitchCell extends FrameLayout {
-
-        private final TextView titleView;
-        private final TextView valueView;
-        private final SeekBarView seekBar;
-
-        public PitchCell(Context context) {
-            super(context);
-            setWillNotDraw(false);
-
-            titleView = new TextView(context);
-            titleView.setTextSize(16);
-            titleView.setTypeface(Typeface.DEFAULT);
-            titleView.setGravity(Gravity.LEFT);
-            titleView.setText("Pitch");
-            addView(titleView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 21, 12, 21, 0));
-
-            valueView = new TextView(context);
-            valueView.setTextSize(14);
-            valueView.setGravity(Gravity.RIGHT);
-            addView(valueView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 21, 14, 21, 0));
-
-            seekBar = new SeekBarView(context);
-            seekBar.setReportChanges(true);
-            seekBar.setDelegate(new SeekBarView.SeekBarViewDelegate() {
-                @Override
-                public void onSeekBarDrag(boolean stop, float progress) {
-                    int semitones = Math.round(VoiceChanger.MIN_SEMITONES + progress * (VoiceChanger.MAX_SEMITONES - VoiceChanger.MIN_SEMITONES));
-                    SharedConfig.setVoiceChangerSemitones(semitones);
-                    valueView.setText(describeSemitones(SharedConfig.voiceChangerSemitones));
-                }
-
-                @Override
-                public void onSeekBarPressed(boolean pressed) {
-                }
-
-                @Override
-                public int getStepsCount() {
-                    return VoiceChanger.MAX_SEMITONES - VoiceChanger.MIN_SEMITONES;
-                }
-            });
-            addView(seekBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38, Gravity.LEFT | Gravity.TOP, 6, 40, 6, 0));
-        }
-
-        public void bind() {
-            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-            titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-            valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteValueText));
-            boolean enabled = SharedConfig.voiceChangerEnabled;
-            setAlpha(enabled ? 1f : 0.5f);
-            seekBar.setEnabled(enabled);
-            seekBar.setClickable(enabled);
-            seekBar.setProgress((SharedConfig.voiceChangerSemitones - VoiceChanger.MIN_SEMITONES) / (float) (VoiceChanger.MAX_SEMITONES - VoiceChanger.MIN_SEMITONES));
-            valueView.setText(describeSemitones(SharedConfig.voiceChangerSemitones));
-        }
-
-        @Override
-        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            // Always take the full row width: the RecyclerView hands out an AT_MOST (wrap_content) spec,
-            // which would shrink the cell to the width of the "Pitch" label and collapse the slider.
-            super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(84), MeasureSpec.EXACTLY));
-        }
-
-        @Override
-        public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
-            return !SharedConfig.voiceChangerEnabled || super.onInterceptTouchEvent(ev);
-        }
-    }
-
     private class ListAdapter extends RecyclerListView.SelectionAdapter {
 
         private final Context mContext;
@@ -241,7 +160,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     view = new HeaderCell(mContext);
                     break;
                 case 4:
-                    view = new PitchCell(mContext);
+                    view = new VoiceChangerPitchCell(mContext);
                     break;
                 case 3:
                 default:
@@ -281,7 +200,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     }
                     break;
                 case 4:
-                    ((PitchCell) holder.itemView).bind();
+                    ((VoiceChangerPitchCell) holder.itemView).bind();
                     break;
             }
         }

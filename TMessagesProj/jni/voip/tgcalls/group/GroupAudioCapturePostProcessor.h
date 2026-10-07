@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "group/GroupInstanceImpl.h"
+#include "group/VoicePitchShifter.h"
 #include "modules/audio_processing/include/audio_processing.h"
 #include "rtc_base/synchronization/mutex.h"
 
@@ -80,6 +81,9 @@ private:
     int32_t _peakCount = 0;
     float _peak = 0;
     VadHistory _history;
+
+    VoicePitchShifter _voicePitchShifter;
+    bool _voiceChangerActive = false;
 
     std::vector<float> *_externalAudioSamples = nullptr;
     webrtc::Mutex *_externalAudioSamplesMutex = nullptr;

@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include "SoundTouch.h"
+#include "voip/tgcalls/group/VoicePitchShifter.h"
 
 using namespace soundtouch;
 
@@ -97,6 +98,13 @@ JNIEXPORT jint Java_org_telegram_messenger_VoiceChanger_nativeFlush(JNIEnv *env,
     }
     vc->st.flush();
     return drain(vc, dst, outCapacity / 2);
+}
+
+// Live state for calls: read by the capture post-processor on every 10 ms frame, so changes apply mid-call.
+JNIEXPORT void Java_org_telegram_messenger_VoiceChanger_nativeSetCallState(JNIEnv *env, jclass clazz, jboolean enabled, jfloat semitones) {
+    tgcalls::VoiceChangerCallState &state = tgcalls::voiceChangerCallState();
+    state.semitones.store(semitones, std::memory_order_relaxed);
+    state.enabled.store(enabled != JNI_FALSE, std::memory_order_relaxed);
 }
 
 JNIEXPORT void Java_org_telegram_messenger_VoiceChanger_nativeDestroy(JNIEnv *env, jclass clazz, jlong handle) {
