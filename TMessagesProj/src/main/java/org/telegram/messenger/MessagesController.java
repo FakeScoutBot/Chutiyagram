@@ -10867,7 +10867,7 @@ public class MessagesController extends BaseController implements NotificationCe
     private final Runnable stealthOfflineRunnable = this::sendStealthOffline;
 
     /** Debounced (an album produces several acks): sends "offline" ~300 ms after the last message was confirmed. */
-    private void scheduleStealthOffline() {
+    public void scheduleStealthOffline() {
         AndroidUtilities.cancelRunOnUIThread(stealthOfflineRunnable);
         AndroidUtilities.runOnUIThread(stealthOfflineRunnable, 300);
     }
@@ -20049,6 +20049,10 @@ public class MessagesController extends BaseController implements NotificationCe
                         dbUsersStatus.add(toDbUser);
                         if (update.user_id == getUserConfig().getClientUserId()) {
                             getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
+                            if (SharedConfig.stealthModeEnabled && update.status instanceof TLRPC.TL_userStatusOnline) {
+                                // Catch-all: whatever made the server mark us online, undo it right away.
+                                scheduleStealthOffline();
+                            }
                         }
                     } else if (baseUpdate instanceof TL_update.TL_updateMonoForumNoPaidException) {
                         TL_update.TL_updateMonoForumNoPaidException update = (TL_update.TL_updateMonoForumNoPaidException) baseUpdate;

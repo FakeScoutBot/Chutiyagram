@@ -42,6 +42,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PushListenerController;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.StealthActions;
 import org.telegram.messenger.StatsController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
@@ -405,7 +406,12 @@ public class ConnectionsManager extends BaseController {
                 startRequestTime = System.currentTimeMillis();
             }
             long finalStartRequestTime = startRequestTime;
+            final boolean stealthOfflineAfter = SharedConfig.stealthModeEnabled && StealthActions.marksUserOnline(object);
             listen(requestToken, (response, errorCode, errorText, networkType, timestamp, requestMsgId, dcId) -> {
+                if (stealthOfflineAfter) {
+                    // The server just marked us online because of this request: go offline again immediately.
+                    MessagesController.getInstance(currentAccount).scheduleStealthOffline();
+                }
                 try {
                     TLObject resp = null;
                     TLRPC.TL_error error = null;
