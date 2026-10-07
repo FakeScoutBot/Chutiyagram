@@ -6399,6 +6399,10 @@ public class MessagesController extends BaseController implements NotificationCe
                 uploadingWallpaperInfo.uploadingProgress = loadedSize / (float) totalSize;
             }
         } else if (id == NotificationCenter.messageReceivedByServer) {
+            if (SharedConfig.stealthModeEnabled) {
+                // The server marks us online when a message is sent; undo that right away.
+                scheduleStealthOffline();
+            }
             Boolean scheduled = (Boolean) args[6];
             if (scheduled) {
                 return;
@@ -10570,9 +10574,10 @@ public class MessagesController extends BaseController implements NotificationCe
                             offlineSent = true;
                             statusSettingState = 0;
                         } else {
-                            if (lastStatusUpdateTime != 0) {
-                                lastStatusUpdateTime += 5000;
-                            }
+                            // retry in about a minute instead of staying blocked in state 2 forever
+                            lastStatusUpdateTime = System.currentTimeMillis();
+                            offlineSent = true;
+                            statusSettingState = 0;
                         }
                         statusRequest = 0;
                     });
@@ -10857,6 +10862,36 @@ public class MessagesController extends BaseController implements NotificationCe
         getLocationController().update();
         checkPromoInfoInternal(false);
         checkTosUpdate();
+    }
+
+    private final Runnable stealthOfflineRunnable = this::sendStealthOffline;
+
+    /** Debounced (an album produces several acks): sends "offline" ~300 ms after the last message was confirmed. */
+    private void scheduleStealthOffline() {
+        AndroidUtilities.cancelRunOnUIThread(stealthOfflineRunnable);
+        AndroidUtilities.runOnUIThread(stealthOfflineRunnable, 300);
+    }
+
+    private void sendStealthOffline() {
+        if (!SharedConfig.stealthModeEnabled || !getUserConfig().isClientActivated()) {
+            return;
+        }
+        if (statusRequest != 0) {
+            getConnectionsManager().cancelRequest(statusRequest, true);
+            statusRequest = 0;
+        }
+        statusSettingState = 2;
+        TL_account.updateStatus req = new TL_account.updateStatus();
+        req.offline = true;
+        statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
+            if (error == null) {
+                lastStatusUpdateTime = System.currentTimeMillis();
+                offlineSent = true;
+            }
+            // always release the state, otherwise the periodic stealth update would be blocked forever
+            statusSettingState = 0;
+            statusRequest = 0;
+        });
     }
 
     /**
