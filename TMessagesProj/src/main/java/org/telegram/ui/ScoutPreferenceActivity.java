@@ -37,9 +37,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
     private int voiceChangerRow;
     private int voicePitchRow;
     private int voiceChangerDetailRow;
-    private int keepDeletedSectionRow;
-    private int keepDeletedRow;
-    private int keepDeletedDetailRow;
     private int rowCount;
 
     private void updateRows() {
@@ -52,9 +49,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
         voiceChangerRow = rowCount++;
         voicePitchRow = rowCount++;
         voiceChangerDetailRow = rowCount++;
-        keepDeletedSectionRow = rowCount++;
-        keepDeletedRow = rowCount++;
-        keepDeletedDetailRow = rowCount++;
     }
 
     @Override
@@ -118,11 +112,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     ((TextCheckCell) view).setChecked(SharedConfig.voiceChangerEnabled);
                 }
                 listAdapter.notifyItemChanged(voicePitchRow);
-            } else if (position == keepDeletedRow) {
-                SharedConfig.setKeepDeletedMessages(!SharedConfig.keepDeletedMessages);
-                if (view instanceof TextCheckCell) {
-                    ((TextCheckCell) view).setChecked(SharedConfig.keepDeletedMessages);
-                }
             }
         });
 
@@ -190,8 +179,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         privacyCell.setText("When enabled, your online status, typing status, read receipts, and story views are hidden from other users as much as Telegram's protocol allows. Sending a message will still reveal that you're online. That's a server-side restriction, not something a client can hide :)");
                     } else if (position == voiceChangerDetailRow) {
                         privacyCell.setText("Changes your voice in voice messages. Lower values make your voice deeper, higher values make it higher.");
-                    } else if (position == keepDeletedDetailRow) {
-                        privacyCell.setText("Messages that other people delete stay in your chats, in the same place. Secret chats, service messages and self-destructing messages are never kept. Messages you delete yourself are removed as usual.");
                     }
                     break;
                 case 2:
@@ -200,8 +187,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         headerCell.setText("Stealth Mode");
                     } else if (position == voiceChangerSectionRow) {
                         headerCell.setText("Voice Changer");
-                    } else if (position == keepDeletedSectionRow) {
-                        headerCell.setText("Deleted Messages");
                     }
                     break;
                 case 3:
@@ -212,8 +197,6 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         textCheckCell.setTextAndCheck("Force Allow Screenshots", SharedConfig.forceAllowScreenshots, false);
                     } else if (position == voiceChangerRow) {
                         textCheckCell.setTextAndCheck("Voice Changer", SharedConfig.voiceChangerEnabled, true);
-                    } else if (position == keepDeletedRow) {
-                        textCheckCell.setTextAndCheck("Keep Deleted Messages", SharedConfig.keepDeletedMessages, false);
                     }
                     break;
                 case 4:
@@ -224,9 +207,9 @@ public class ScoutPreferenceActivity extends BaseFragment {
 
         @Override
         public int getItemViewType(int position) {
-            if (position == stealthModeDetailRow || position == voiceChangerDetailRow || position == keepDeletedDetailRow) {
+            if (position == stealthModeDetailRow || position == voiceChangerDetailRow) {
                 return 1;
-            } else if (position == stealthModeSectionRow || position == voiceChangerSectionRow || position == keepDeletedSectionRow) {
+            } else if (position == stealthModeSectionRow || position == voiceChangerSectionRow) {
                 return 2;
             } else if (position == voicePitchRow) {
                 return 4;
