@@ -123,6 +123,7 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         }
         maxHeight = getMeasuredHeight();
+        syncBottomViewOffset();
     }
 
     private void updatePopupTranslation() {
@@ -135,6 +136,18 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
 
     public void applyViewBottom(FrameLayout bottomView) {
         this.bottomView = bottomView;
+        syncBottomViewOffset();
+    }
+    
+    private void syncBottomViewOffset() {
+        if (bottomView == null || popupWindowLayout == null) {
+            return;
+        }
+        float offset = popupWindowLayout.getVisibleHeight() - popupWindowLayout.getMeasuredHeight();
+        if (offset != bottomViewYOffset) {
+            bottomViewYOffset = offset;
+            updateBottomViewPosition();
+        }
     }
 
     public void setReactionsLayout(ReactionsContainerLayout reactionsLayout) {
@@ -146,12 +159,7 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
 
     public void setPopupWindowLayout(ActionBarPopupWindow.ActionBarPopupWindowLayout popupWindowLayout) {
         this.popupWindowLayout = popupWindowLayout;
-        popupWindowLayout.setOnSizeChangedListener(() -> {
-            if (bottomView != null) {
-                bottomViewYOffset = popupWindowLayout.getVisibleHeight() - popupWindowLayout.getMeasuredHeight();
-                updateBottomViewPosition();
-            }
-        });
+        popupWindowLayout.setOnSizeChangedListener(this::syncBottomViewOffset);
         if (popupWindowLayout.getSwipeBack() != null) {
             popupWindowLayout.getSwipeBack().addOnSwipeBackProgressListener((layout, toProgress, progress) -> {
                 if (bottomView != null) {
