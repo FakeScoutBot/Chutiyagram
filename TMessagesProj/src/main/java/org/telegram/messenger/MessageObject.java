@@ -1927,7 +1927,7 @@ public class MessageObject {
         replyMessageObject = replyToMessage;
         eventId = eid;
         wasUnread = !messageOwner.out && messageOwner.unread;
-        if (message.id > 0) {
+        if (SharedConfig.keepDeletedMessages && message.id > 0) {
             deletedLocally = DeletedMessagesStore.getInstance(accountNum).isDeleted(getDialogId(message), message.id);
         }
 
