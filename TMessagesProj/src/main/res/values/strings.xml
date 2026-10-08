@@ -1592,7 +1592,6 @@
     <string name="ReplacePhoto">Replace photo</string>
     <string name="MessageDetails">Details</string>
     <string name="MessageDetailsSent">Sent</string>
-    <string name="MessageDetailsDeleted">Deleted</string>
     <string name="MessageDetailsId">Message ID</string>
     <string name="MessageDetailsFileId">File ID</string>
     <string name="MessageDetailsUniqueId">File unique ID</string>
@@ -5365,7 +5364,6 @@
     <string name="UserAcceptedToGroupPush">%1$s was accepted into the group</string>
     <string name="UserAcceptedToGroupPushWithGroup">%2$s|%1$s was accepted into the group</string>
     <string name="ForwardsRestrictedInfoChannel">Сopying and forwarding is not allowed in this channel.</string>
-    <string name="ForwardsRestrictedInfoDeleted">Forwarding is not allowed for deleted messages.</string>
     <string name="ForwardsRestrictedInfoGroup">Сopying and forwarding is not allowed in this group.</string>
     <string name="ForwardsRestrictedInfoUser">Сopying and forwarding is not allowed for this user.</string>
     <string name="ForwardsRestrictedInfoUserBecauseYou">You disabled copying and forwarding in this chat.</string>

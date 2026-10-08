@@ -17785,41 +17785,8 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> pushIds, long channelId) {
-        deleteMessagesByPush(dialogId, pushIds, channelId, true);
-    }
-
-    /**
-     * Removes every message that was kept after someone else deleted it, for this account. They go through the
-     * same local-only removal as a push delete (chats and dialog list update), but are not kept a second time.
-     */
-    public void clearSavedDeletedMessages() {
-        DeletedMessagesStore store = DeletedMessagesStore.getInstance(currentAccount);
-        HashMap<Long, ArrayList<Integer>> saved = store.snapshot();
-        // forget them first, so messages loaded from here on are no longer marked as deleted
-        store.clearAll();
-        for (Map.Entry<Long, ArrayList<Integer>> entry : saved.entrySet()) {
-            long dialogId = entry.getKey();
-            ArrayList<Integer> ids = entry.getValue();
-            if (ids == null || ids.isEmpty()) {
-                continue;
-            }
-            long channelId = 0;
-            if (DialogObject.isChatDialog(dialogId)) {
-                TLRPC.Chat chat = getChat(-dialogId);
-                if (chat == null) {
-                    chat = getMessagesStorage().getChatSync(-dialogId);
-                }
-                if (ChatObject.isChannel(chat)) {
-                    channelId = -dialogId;
-                }
-            }
-            deleteMessagesByPush(dialogId, ids, channelId, false);
-        }
-    }
-
-    private void deleteMessagesByPush(long dialogId, ArrayList<Integer> pushIds, long channelId, boolean allowPreserve) {
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
-            final ArrayList<Integer> ids = allowPreserve ? splitPreservedDeletes(dialogId, pushIds, channelId) : pushIds;
+            final ArrayList<Integer> ids = splitPreservedDeletes(dialogId, pushIds, channelId);
             if (ids.isEmpty()) {
                 getMessagesStorage().deletePushMessages(dialogId, pushIds);
                 return;
