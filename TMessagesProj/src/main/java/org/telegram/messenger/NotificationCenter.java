@@ -42,7 +42,6 @@ public class NotificationCenter {
     public static final int closeChatActivity = totalEvents++;
     public static final int closeProfileActivity = totalEvents++;
     public static final int messagesDeleted = totalEvents++;
-    public static final int messagesPreservedAsDeleted = totalEvents++;
     public static final int historyCleared = totalEvents++;
     public static final int messagesRead = totalEvents++;
     public static final int threadMessagesRead = totalEvents++;
