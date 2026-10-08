@@ -9,16 +9,22 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Cells.VoiceChangerPitchCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 
@@ -39,6 +45,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
     private int voiceChangerDetailRow;
     private int keepDeletedSectionRow;
     private int keepDeletedRow;
+    private int clearDeletedRow;
     private int keepDeletedDetailRow;
     private int rowCount;
 
@@ -54,6 +61,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
         voiceChangerDetailRow = rowCount++;
         keepDeletedSectionRow = rowCount++;
         keepDeletedRow = rowCount++;
+        clearDeletedRow = rowCount++;
         keepDeletedDetailRow = rowCount++;
     }
 
@@ -123,6 +131,8 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 if (view instanceof TextCheckCell) {
                     ((TextCheckCell) view).setChecked(SharedConfig.keepDeletedMessages);
                 }
+            } else if (position == clearDeletedRow) {
+                confirmClearDeletedMessages();
             }
         });
 
@@ -140,6 +150,25 @@ public class ScoutPreferenceActivity extends BaseFragment {
         listView.setClipToPadding(false);
     }
 
+    private void confirmClearDeletedMessages() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle("Clear saved deleted messages?");
+        builder.setMessage("Messages that other people deleted and that are kept on this device will be removed from your chats. This cannot be undone.");
+        builder.setPositiveButton(LocaleController.getString(R.string.Clear), (dialog, which) -> {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    MessagesController.getInstance(a).clearSavedDeletedMessages();
+                }
+            }
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, "Saved deleted messages cleared").show();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
     private class ListAdapter extends RecyclerListView.SelectionAdapter {
 
         private final Context mContext;
@@ -151,7 +180,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == stealthModeRow || position == screenshotsRow || position == voiceChangerRow;
+            return position == stealthModeRow || position == screenshotsRow || position == voiceChangerRow || position == keepDeletedRow || position == clearDeletedRow;
         }
 
         @Override
@@ -172,6 +201,10 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     break;
                 case 4:
                     view = new VoiceChangerPitchCell(mContext);
+                    break;
+                case 5:
+                    view = new TextSettingsCell(mContext);
+                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     break;
                 case 3:
                 default:
@@ -213,11 +246,16 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     } else if (position == voiceChangerRow) {
                         textCheckCell.setTextAndCheck("Voice Changer", SharedConfig.voiceChangerEnabled, true);
                     } else if (position == keepDeletedRow) {
-                        textCheckCell.setTextAndCheck("Keep Deleted Messages", SharedConfig.keepDeletedMessages, false);
+                        textCheckCell.setTextAndCheck("Keep Deleted Messages", SharedConfig.keepDeletedMessages, true);
                     }
                     break;
                 case 4:
                     ((VoiceChangerPitchCell) holder.itemView).bind();
+                    break;
+                case 5:
+                    TextSettingsCell settingsCell = (TextSettingsCell) holder.itemView;
+                    settingsCell.setText("Clear Saved Deleted Messages", false);
+                    settingsCell.setTextColor(Theme.getColor(Theme.key_text_RedRegular));
                     break;
             }
         }
@@ -230,6 +268,8 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 return 2;
             } else if (position == voicePitchRow) {
                 return 4;
+            } else if (position == clearDeletedRow) {
+                return 5;
             } else if (position == stealthModeRow || position == screenshotsRow) {
                 return 3;
             }

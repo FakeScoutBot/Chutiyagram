@@ -7,7 +7,6 @@ import org.telegram.SQLite.SQLitePreparedStatement;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 
 /**
@@ -35,7 +34,8 @@ public class DeletedMessagesStore extends BaseController {
 
     private final Object lock = new Object();
     private final DispatchQueue queue = new DispatchQueue("deletedMessagesQueue");
-    private final HashMap<Long, HashSet<Integer>> deleted = new HashMap<>();
+    // dialog id -> (message id -> unix time at which this client saw the deletion)
+    private final HashMap<Long, HashMap<Integer, Integer>> deleted = new HashMap<>();
     private SQLiteDatabase database;
     private boolean loaded;
 
@@ -54,9 +54,9 @@ public class DeletedMessagesStore extends BaseController {
             File file = new File(ApplicationLoader.getFilesDirFixed(), "deleted_messages_" + currentAccount + ".db");
             database = new SQLiteDatabase(file.getPath());
             database.executeFast("CREATE TABLE IF NOT EXISTS deleted_messages(uid INTEGER, mid INTEGER, date INTEGER, PRIMARY KEY(uid, mid))").stepThis().dispose();
-            cursor = database.queryFinalized("SELECT uid, mid FROM deleted_messages");
+            cursor = database.queryFinalized("SELECT uid, mid, date FROM deleted_messages");
             while (cursor.next()) {
-                putInMemory(cursor.longValue(0), cursor.intValue(1));
+                putInMemory(cursor.longValue(0), cursor.intValue(1), cursor.intValue(2));
             }
         } catch (Exception e) {
             FileLog.e(e);
@@ -67,20 +67,30 @@ public class DeletedMessagesStore extends BaseController {
         }
     }
 
-    private void putInMemory(long uid, int mid) {
-        HashSet<Integer> set = deleted.get(uid);
-        if (set == null) {
-            set = new HashSet<>();
-            deleted.put(uid, set);
+    private void putInMemory(long uid, int mid, int date) {
+        HashMap<Integer, Integer> map = deleted.get(uid);
+        if (map == null) {
+            map = new HashMap<>();
+            deleted.put(uid, map);
         }
-        set.add(mid);
+        map.put(mid, date);
     }
 
     public boolean isDeleted(long uid, int mid) {
         synchronized (lock) {
             ensureLoaded();
-            HashSet<Integer> set = deleted.get(uid);
-            return set != null && set.contains(mid);
+            HashMap<Integer, Integer> map = deleted.get(uid);
+            return map != null && map.containsKey(mid);
+        }
+    }
+
+    /** Unix time at which this client noticed the deletion, or 0 when the message is not stored. */
+    public int getDeletedDate(long uid, int mid) {
+        synchronized (lock) {
+            ensureLoaded();
+            HashMap<Integer, Integer> map = deleted.get(uid);
+            Integer date = map != null ? map.get(mid) : null;
+            return date != null ? date : 0;
         }
     }
 
@@ -93,7 +103,7 @@ public class DeletedMessagesStore extends BaseController {
         synchronized (lock) {
             ensureLoaded();
             for (int a = 0, N = copy.size(); a < N; a++) {
-                putInMemory(uid, copy.get(a));
+                putInMemory(uid, copy.get(a), date);
             }
         }
         queue.postRunnable(() -> {
@@ -131,8 +141,8 @@ public class DeletedMessagesStore extends BaseController {
         HashMap<Long, ArrayList<Integer>> result = new HashMap<>();
         synchronized (lock) {
             ensureLoaded();
-            for (Map.Entry<Long, HashSet<Integer>> entry : deleted.entrySet()) {
-                result.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            for (Map.Entry<Long, HashMap<Integer, Integer>> entry : deleted.entrySet()) {
+                result.put(entry.getKey(), new ArrayList<>(entry.getValue().keySet()));
             }
         }
         return result;
