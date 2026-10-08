@@ -12193,6 +12193,20 @@ public class ChatActivity extends BaseFragment implements
         return false;
     }
 
+    private boolean hasSelectedDeletedMessage() {
+        try {
+            for (int i = 0; i < selectedMessagesIds.length; ++i) {
+                for (int j = 0; j < selectedMessagesIds[i].size(); ++j) {
+                    MessageObject msg = selectedMessagesIds[i].valueAt(j);
+                    if (msg != null && msg.deletedLocally) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignore) {}
+        return false;
+    }
+
     private void share() {
         MessageObject msg = null;
         for (int a = 1; a >= 0; a--) {
@@ -12240,7 +12254,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openForward(boolean fromActionBar) {
-        if (isPeerNoForwards() || hasSelectedNoforwardsMessage()) {
+        if (isPeerNoForwards() || hasSelectedNoforwardsMessage() || hasSelectedDeletedMessage()) {
             // We should update text if user changed locale without re-opening chat activity
             String str;
             if (isPeerNoForwards()) {
@@ -12251,8 +12265,10 @@ public class ChatActivity extends BaseFragment implements
                 } else {
                     str = LocaleController.getString(R.string.ForwardsRestrictedInfoGroup);
                 }
-            } else {
+            } else if (hasSelectedNoforwardsMessage()) {
                 str = LocaleController.getString(R.string.ForwardsRestrictedInfoBot);
+            } else {
+                str = LocaleController.getString(R.string.ForwardsRestrictedInfoDeleted);
             }
             if (fromActionBar) {
                 if (fwdRestrictedTopHint == null) {
@@ -19182,7 +19198,7 @@ public class ChatActivity extends BaseFragment implements
                 ActionBarMenuItem tagItem = actionBar.createActionMode().getItem(tag_message);
                 ActionBarMenuItem shareItem = actionBar.createActionMode().getItem(share);
 
-                boolean noforwards = isPeerNoForwards() || hasSelectedNoforwardsMessage();
+                boolean noforwards = isPeerNoForwards() || hasSelectedNoforwardsMessage() || hasSelectedDeletedMessage();
                 if (prevCantForwardCount == 0 && cantForwardMessagesCount != 0 || prevCantForwardCount != 0 && cantForwardMessagesCount == 0) {
                     forwardButtonAnimation = new AnimatorSet();
                     ArrayList<Animator> animators = new ArrayList<>();
@@ -31042,9 +31058,9 @@ public class ChatActivity extends BaseFragment implements
 
             List<TLRPC.TL_availableReaction> availableReacts = getMediaDataController().getEnabledReactionsList();
             final boolean isEphemeral = message != null && message.isEphemeral();
-            final boolean isReactionsViewAvailable = !isEphemeral && !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia();
+            final boolean isReactionsViewAvailable = !isEphemeral && !suggestEdit && (message == null || !message.deletedLocally) && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia();
             final boolean isReactionsAvailable;
-            if (suggestEdit || isEphemeral) {
+            if (suggestEdit || isEphemeral || (message != null && message.deletedLocally)) {
                 isReactionsAvailable = false;
             } else if (message.isForwardedChannelPost()) {
                 TLRPC.ChatFull chatInfo = getMessagesController().getChatFull(-message.getFromChatId());
@@ -31135,6 +31151,15 @@ public class ChatActivity extends BaseFragment implements
                 detailsSentRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsSent), R.drawable.msg_calendar2);
                 detailsSentRow.setSubtext(detailsSentAt);
                 detailsRows.addView(detailsSentRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+                // Only for messages kept after someone deleted them: when this device noticed the deletion.
+                final int detailsDeletedAt = message.deletedLocally ? org.telegram.messenger.DeletedMessagesStore.getInstance(currentAccount).getDeletedDate(message.getDialogId(), message.getId()) : 0;
+                if (detailsDeletedAt > 0) {
+                    ActionBarMenuSubItem detailsDeletedRow = new ActionBarMenuSubItem(getParentActivity(), false, false, themeDelegate);
+                    detailsDeletedRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsDeleted), R.drawable.msg_delete);
+                    detailsDeletedRow.setSubtext(detailsDateFormat.format(new java.util.Date((long) detailsDeletedAt * 1000L)));
+                    detailsRows.addView(detailsDeletedRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+                }
 
                 ActionBarMenuSubItem detailsIdRow = new ActionBarMenuSubItem(getParentActivity(), false, detailsMediaRows.isEmpty(), themeDelegate);
                 detailsIdRow.setTextAndIcon(LocaleController.getString(R.string.MessageDetailsId), R.drawable.msg_copy);
@@ -32308,7 +32333,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
 
-                boolean showNoForwards = (isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
+                boolean showNoForwards = ((isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) || message.deletedLocally) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
                 scrimPopupContainerLayout.addView(popupLayout, LayoutHelper.createLinearRelatively(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, 0, isReactionsAvailable ? 36 : 0, 0));
                 scrimPopupContainerLayout.setPopupWindowLayout(popupLayout);
                 if (showNoForwards) {
@@ -32332,6 +32357,8 @@ public class ChatActivity extends BaseFragment implements
                             str = LocaleController.getString(isChannel ? R.string.ForwardsRestrictedInfoChannel : R.string.ForwardsRestrictedInfoGroup);
                         }
                         tv.setText(AndroidUtilities.replaceTags(str));
+                    } else if (message.deletedLocally) {
+                        tv.setText(LocaleController.getString(R.string.ForwardsRestrictedInfoDeleted));
                     } else {
                         tv.setText(LocaleController.getString(R.string.ForwardsRestrictedInfoBot));
                     }
@@ -40689,7 +40716,7 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public void didPressVoteButtons(ChatMessageCell cell, ArrayList<TLRPC.PollAnswer> buttons, int showCount, int x, int y) {
             final MessageObject message = cell.getMessageObject();
-            if (message == null) {
+            if (message == null || message.deletedLocally) {
                 return;
             }
 
@@ -45474,6 +45501,12 @@ public class ChatActivity extends BaseFragment implements
         if (getParentActivity() == null || getContext() == null) {
             return;
         }
+        if (cell instanceof ChatMessageCell) {
+            MessageObject reactedMessage = ((ChatMessageCell) cell).getMessageObject();
+            if (reactedMessage != null && reactedMessage.deletedLocally) {
+                return;
+            }
+        }
         if (savedMessagesTagHint != null && savedMessagesTagHint.shown()) {
             savedMessagesTagHint.hide();
         }
@@ -46580,6 +46613,34 @@ public class ChatActivity extends BaseFragment implements
             items.add(getString(R.string.WelcomeMessageRevert));
             options.add(OPTION_WELCOME_REVERT);
             icons.add(R.drawable.outline_revert_24);
+        }
+
+        if (message.deletedLocally) {
+            // Kept after someone else deleted it. Everything that needs the server to still have the message goes.
+            for (int i = options.size() - 1; i >= 0; i--) {
+                switch (options.get(i)) {
+                    case OPTION_FORWARD:
+                    case OPTION_COPY_LINK:
+                    case OPTION_REPORT_CHAT:
+                    case OPTION_PIN:
+                    case OPTION_UNPIN:
+                    case OPTION_EDIT:
+                    case OPTION_EDIT_PRICE:
+                    case OPTION_EDIT_TODO:
+                    case OPTION_EDIT_SCHEDULE_TIME:
+                    case OPTION_UNVOTE:
+                        options.remove(i);
+                        if (i < items.size()) {
+                            items.remove(i);
+                        }
+                        if (i < icons.size()) {
+                            icons.remove(i);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
     }
 

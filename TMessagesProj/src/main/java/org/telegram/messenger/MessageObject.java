@@ -10140,7 +10140,7 @@ public class MessageObject {
     }
 
     public boolean canSetReaction() {
-        if (isEphemeral()) {
+        if (deletedLocally || isEphemeral()) {
             return false;
         }
         if (messageOwner instanceof TLRPC.TL_messageService)
@@ -11597,7 +11597,7 @@ public class MessageObject {
     }
 
     public boolean canEditMessage(TLRPC.Chat chat) {
-        return !isEphemeralAndNotWelcome() && canEditMessage(currentAccount, messageOwner, chat, scheduled);
+        return !deletedLocally && !isEphemeralAndNotWelcome() && canEditMessage(currentAccount, messageOwner, chat, scheduled);
     }
 
     public boolean canEditMessageScheduleTime(TLRPC.Chat chat) {
@@ -11605,6 +11605,7 @@ public class MessageObject {
     }
 
     public boolean canForwardMessage() {
+        if (deletedLocally) return false;
         if (isQuickReply()) return false;
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
         return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && !messageOwner.noforwards;
