@@ -22286,8 +22286,6 @@ public class ChatActivity extends BaseFragment implements
                 MessageObject preserved = messagesDict[preservedLoadIndex].get(preservedMessages.get(a));
                 if (preserved != null) {
                     preserved.deletedLocally = true;
-                    // re-binds the visible cell in place, no item animation
-                    chatAdapter.updateRowWithMessageObject(preserved, true, false);
                 }
             }
         } else if (id == NotificationCenter.messagesDeleted) {
