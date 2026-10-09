@@ -189,6 +189,11 @@ public class DeletedMessagesStore extends BaseController {
 
     /** The saved copies of the kept messages of a dialog, newest first. Only messages that are still marked as deleted. */
     public ArrayList<TLRPC.Message> getSavedMessages(long uid) {
+        return getSavedMessages(uid, 1, Integer.MAX_VALUE);
+    }
+
+    /** Same as getSavedMessages(uid), limited to message ids from minId to maxId (both included). */
+    public ArrayList<TLRPC.Message> getSavedMessages(long uid, int minId, int maxId) {
         ArrayList<TLRPC.Message> result = new ArrayList<>();
         synchronized (lock) {
             ensureLoaded();
@@ -197,7 +202,7 @@ public class DeletedMessagesStore extends BaseController {
             }
             SQLiteCursor cursor = null;
             try {
-                cursor = database.queryFinalized("SELECT mid, data FROM deleted_message_data WHERE uid = " + uid + " ORDER BY mid DESC");
+                cursor = database.queryFinalized("SELECT mid, data FROM deleted_message_data WHERE uid = " + uid + " AND mid >= " + minId + " AND mid <= " + maxId + " ORDER BY mid DESC");
                 while (cursor.next()) {
                     int mid = cursor.intValue(0);
                     HashMap<Integer, Integer> map = deleted.get(uid);
