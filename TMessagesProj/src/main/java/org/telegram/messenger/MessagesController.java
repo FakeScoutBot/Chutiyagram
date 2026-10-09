@@ -12030,6 +12030,73 @@ public class MessagesController extends BaseController implements NotificationCe
         return null;
     }
 
+    /**
+     * Puts the kept (deleted by someone else) messages that belong to the range covered by a page loaded from the server
+     * back into that page. Saved copies exist for channels and supergroups. Returns how many messages were added.
+     */
+    private int mergeKeptMessagesIntoServerPage(ArrayList<TLRPC.Message> page, LongSparseArray<TLRPC.User> usersDict, long dialogId, boolean isCache, int mode, long threadMessageId, boolean isTopic, int count, int max_id, int offset_date, int load_type) {
+        if (isCache || mode != ChatActivity.MODE_DEFAULT || threadMessageId != 0 || isTopic || page.isEmpty() || !DialogObject.isChatDialog(dialogId)) {
+            return 0;
+        }
+        int minId = Integer.MAX_VALUE;
+        int maxId = Integer.MIN_VALUE;
+        HashSet<Integer> present = new HashSet<>();
+        for (int a = 0, N = page.size(); a < N; a++) {
+            int id = page.get(a).id;
+            if (id <= 0) {
+                continue;
+            }
+            present.add(id);
+            minId = Math.min(minId, id);
+            maxId = Math.max(maxId, id);
+        }
+        if (present.isEmpty()) {
+            return 0;
+        }
+        int lo = minId;
+        int hi = maxId;
+        if (load_type == 0) {
+            if (page.size() < count) {
+                lo = 1; // history ends in this page
+            }
+            if (max_id == 0 && offset_date == 0) {
+                hi = Integer.MAX_VALUE; // newest page
+            } else if (max_id > 0) {
+                hi = Math.max(maxId, max_id - 1);
+            }
+        } else if (load_type == 1) {
+            if (page.size() < count) {
+                hi = Integer.MAX_VALUE; // reached the newest messages
+            }
+        } else if (max_id == 0 && offset_date == 0) {
+            hi = Integer.MAX_VALUE;
+        }
+        ArrayList<TLRPC.Message> saved = DeletedMessagesStore.getInstance(currentAccount).getSavedMessages(dialogId, lo, hi);
+        int added = 0;
+        for (int a = 0, N = saved.size(); a < N; a++) {
+            TLRPC.Message message = saved.get(a);
+            if (present.contains(message.id)) {
+                continue;
+            }
+            message.unread = false;
+            message.media_unread = false;
+            long fromId = MessageObject.getFromChatId(message);
+            if (fromId > 0 && usersDict.get(fromId) == null) {
+                TLRPC.User user = getUser(fromId);
+                if (user != null) {
+                    usersDict.put(fromId, user);
+                }
+            }
+            page.add(message);
+            added++;
+        }
+        if (added > 0) {
+            Collections.sort(page, (m1, m2) -> m2.id - m1.id);
+        }
+        FileLog.d("KeepDeleted: server page dialog=" + dialogId + " load_type=" + load_type + " range=" + lo + ".." + hi + " serverMessages=" + present.size() + " mergedKept=" + added);
+        return added;
+    }
+
     public void processLoadedMessages(TLRPC.messages_Messages messagesRes, int resCount, long dialogId, long mergeDialogId, int count, int max_id, int offset_date, boolean isCache, int classGuid,
                                       int first_unread, int last_message_id, int unread_count, int last_date, int load_type, boolean isEnd, int mode, long threadMessageId, int loadIndex, boolean queryFromServer, int mentionsCount, boolean needProcess, boolean isTopic, Timer loaderLogger) {
         if (BuildVars.LOGS_ENABLED) {
@@ -12198,11 +12265,18 @@ public class MessagesController extends BaseController implements NotificationCe
             });
             return;
         }
+        // The server does not return messages that someone deleted, so a page that comes from the server (and not from the
+        // local database) has to get the kept ones back, otherwise they are missing until the chat is opened again.
+        // A separate list: messagesRes.messages may still be read by the storage queue (putMessages above).
+        final ArrayList<TLRPC.Message> loadedMessages = new ArrayList<>(messagesRes.messages);
+        final int keptAdded = mergeKeptMessagesIntoServerPage(loadedMessages, usersDict, dialogId, isCache, mode, threadMessageId, isTopic, count, max_id, offset_date, load_type);
+        size = loadedMessages.size();
+        final int notifyCount = count + keptAdded;
         final ArrayList<MessageObject> objects = new ArrayList<>();
         final ArrayList<Integer> messagesToReload = new ArrayList<>();
         final HashMap<String, ArrayList<MessageObject>> webpagesToReload = new HashMap<>();
         for (int a = 0; a < size; a++) {
-            final TLRPC.Message message = messagesRes.messages.get(a);
+            final TLRPC.Message message = loadedMessages.get(a);
             message.dialog_id = dialogId;
             final MessageObject messageObject = new MessageObject(currentAccount, message, usersDict, chatsDict, true, false, mode == ChatActivity.MODE_SAVED);
             messageObject.scheduled = mode == 1;
@@ -12325,11 +12399,11 @@ public class MessagesController extends BaseController implements NotificationCe
                     if (!needProcess) {
                         getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoadWithoutProcess, classGuid, resCount, isCache, isEnd, last_message_id);
                     } else {
-                        getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, count, objects, isCache, finalFirst_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, max_id, mentionsCount, mode);
+                        getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, notifyCount, objects, isCache, finalFirst_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, max_id, mentionsCount, mode);
                     }
                 }, classGuid, loaderLogger);
             } else {
-                getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, count, objects, isCache, first_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, max_id, mentionsCount, mode);
+                getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, notifyCount, objects, isCache, first_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, max_id, mentionsCount, mode);
             }
 
             if (!messagesToReload.isEmpty()) {
