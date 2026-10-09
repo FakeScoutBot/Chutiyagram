@@ -11411,6 +11411,7 @@ public class MessagesStorage extends BaseController {
     private void restoreKeptChannelMessages(long did, ArrayList<TLRPC.Message> freshMessages) {
         try {
             ArrayList<TLRPC.Message> saved = DeletedMessagesStore.getInstance(currentAccount).getSavedMessages(did);
+            FileLog.d("KeepDeleted: channel history was overwritten (too long difference) dialog=" + did + " savedCopies=" + saved.size());
             if (saved.isEmpty()) {
                 return;
             }
@@ -11430,6 +11431,7 @@ public class MessagesStorage extends BaseController {
                 message.media_unread = false;
                 toPut.add(message);
             }
+            FileLog.d("KeepDeleted: restoring " + toPut.size() + " kept messages into dialog=" + did);
             if (!toPut.isEmpty()) {
                 putMessages(toPut, false, false, true, 0, 0, 0);
             }
@@ -15364,6 +15366,7 @@ public class MessagesStorage extends BaseController {
         }
         LongSparseArray<ArrayList<Integer>> result = null;
         SQLiteCursor cursor = null;
+        int rows = 0;
         try {
             String ids = TextUtils.join(",", messages);
             if (dialogId != 0) {
@@ -15374,25 +15377,32 @@ public class MessagesStorage extends BaseController {
             while (cursor.next()) {
                 long did = cursor.longValue(0);
                 int mid = cursor.intValue(2);
+                rows++;
                 if (mid <= 0 || DialogObject.isEncryptedDialog(did)) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (id or secret chat)");
                     continue;
                 }
                 NativeByteBuffer data = cursor.byteBufferValue(1);
                 if (data == null) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (no data)");
                     continue;
                 }
                 TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                 data.reuse();
                 if (message == null || message instanceof TLRPC.TL_messageEmpty) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (empty message)");
                     continue;
                 }
                 if (message.action != null && !(message.action instanceof TLRPC.TL_messageActionEmpty)) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (service message " + message.action.getClass().getSimpleName() + ")");
                     continue;
                 }
                 if (message.ttl_period != 0 || message.ttl != 0) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (auto-delete timer ttl_period=" + message.ttl_period + " ttl=" + message.ttl + ")");
                     continue;
                 }
                 if (message.media != null && (message.media.ttl_seconds != 0 || message.media instanceof TLRPC.TL_messageMediaGeoLive)) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (self-destruct media or live location)");
                     continue;
                 }
                 if (message.peer_id instanceof TLRPC.TL_peerChannel) {
@@ -15416,6 +15426,13 @@ public class MessagesStorage extends BaseController {
                 cursor.dispose();
             }
         }
+        int keptCount = 0;
+        if (result != null) {
+            for (int a = 0, N = result.size(); a < N; a++) {
+                keptCount += result.valueAt(a).size();
+            }
+        }
+        FileLog.d("KeepDeleted: findPreservable dialog=" + dialogId + " requested=" + messages.size() + " foundInDb=" + rows + " kept=" + keptCount);
         return result;
     }
 
