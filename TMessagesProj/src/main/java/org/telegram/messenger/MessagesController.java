@@ -17731,6 +17731,9 @@ public class MessagesController extends BaseController implements NotificationCe
     // Storage queue only. Records the kept messages in DeletedMessagesStore and fills `preserve`.
     private void classifyDeletedMessages(LongSparseArray<ArrayList<Integer>> deleted, PreservedDeletes preserve) {
         if (deleted == null || !SharedConfig.keepDeletedMessages) {
+            if (deleted != null) {
+                FileLog.d("KeepDeleted: delete update ignored, keepDeletedMessages is off");
+            }
             return;
         }
         for (int a = 0, size = deleted.size(); a < size; a++) {
@@ -17739,6 +17742,7 @@ public class MessagesController extends BaseController implements NotificationCe
             if (mids == null || mids.isEmpty()) {
                 continue;
             }
+            FileLog.d("KeepDeleted: server delete update key=" + key + " mids=" + mids);
             LongSparseArray<ArrayList<Integer>> byDialog = getMessagesStorage().findPreservableDeletedMessages(key, mids);
             if (byDialog == null) {
                 continue;
