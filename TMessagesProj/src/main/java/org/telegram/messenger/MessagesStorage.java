@@ -11401,6 +11401,43 @@ public class MessagesStorage extends BaseController {
         });
     }
 
+    /**
+     * Puts the messages that were kept after being deleted by someone else back into a channel whose history was just
+     * wiped (too long difference). Must run on the storage queue, after the new messages were stored. The messages are old
+     * and already read, so they touch neither the unread counters nor, apart from the usual rule that only a newer message
+     * replaces the last one, the dialog preview. They sit in the part of the history that is a hole now, so they show up
+     * again once that part has been loaded from the server.
+     */
+    private void restoreKeptChannelMessages(long did, ArrayList<TLRPC.Message> freshMessages) {
+        try {
+            ArrayList<TLRPC.Message> saved = DeletedMessagesStore.getInstance(currentAccount).getSavedMessages(did);
+            if (saved.isEmpty()) {
+                return;
+            }
+            java.util.HashSet<Integer> fresh = new java.util.HashSet<>();
+            if (freshMessages != null) {
+                for (int a = 0, N = freshMessages.size(); a < N; a++) {
+                    fresh.add(freshMessages.get(a).id);
+                }
+            }
+            ArrayList<TLRPC.Message> toPut = new ArrayList<>();
+            for (int a = 0, N = saved.size(); a < N; a++) {
+                TLRPC.Message message = saved.get(a);
+                if (fresh.contains(message.id)) {
+                    continue;
+                }
+                message.unread = false;
+                message.media_unread = false;
+                toPut.add(message);
+            }
+            if (!toPut.isEmpty()) {
+                putMessages(toPut, false, false, true, 0, 0, 0);
+            }
+        } catch (Exception e) {
+            checkSQLException(e);
+        }
+    }
+
     public void overwriteChannel(long channelId, TLRPC.TL_updates_channelDifferenceTooLong difference, int newDialogType, Runnable onDone) {
         storageQueue.postRunnable(() -> {
             SQLiteCursor cursor = null;
@@ -11451,6 +11488,7 @@ public class MessagesStorage extends BaseController {
                 dialog.pinnedNum = pinned;
                 dialogs.dialogs.add(dialog);
                 putDialogsInternal(dialogs, 0);
+                restoreKeptChannelMessages(did, difference.messages);
 
                 updateDialogsWithDeletedMessages(-channelId, channelId, new ArrayList<>(), null);
                 AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.removeAllMessagesFromDialog, did, true, difference));
@@ -15356,6 +15394,10 @@ public class MessagesStorage extends BaseController {
                 }
                 if (message.media != null && (message.media.ttl_seconds != 0 || message.media instanceof TLRPC.TL_messageMediaGeoLive)) {
                     continue;
+                }
+                if (message.peer_id instanceof TLRPC.TL_peerChannel) {
+                    // a too long channel difference wipes the channel history, keep a copy to put the message back (see overwriteChannel)
+                    DeletedMessagesStore.getInstance(currentAccount).saveMessageData(did, mid, message);
                 }
                 if (result == null) {
                     result = new LongSparseArray<>();
