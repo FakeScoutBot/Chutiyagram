@@ -224,6 +224,8 @@ public class MessageObject {
     public String monthKey;
     public boolean deleted;
     public boolean deletedByThanos;
+    // deleted by someone else, but kept in the local history (see DeletedMessagesStore)
+    public boolean deletedLocally;
     public float audioProgress;
     public float forceSeekTo = -1;
     public int audioProgressMs;
@@ -1925,6 +1927,9 @@ public class MessageObject {
         replyMessageObject = replyToMessage;
         eventId = eid;
         wasUnread = !messageOwner.out && messageOwner.unread;
+        if (message.id > 0) {
+            deletedLocally = DeletedMessagesStore.getInstance(accountNum).isDeleted(getDialogId(message), message.id);
+        }
 
         if (message.replyMessage != null) {
             replyMessageObject = new MessageObject(currentAccount, message.replyMessage, null, users, chats, sUsers, sChats, false, checkMediaExists, eid);
@@ -10135,7 +10140,7 @@ public class MessageObject {
     }
 
     public boolean canSetReaction() {
-        if (isEphemeral()) {
+        if (deletedLocally || isEphemeral()) {
             return false;
         }
         if (messageOwner instanceof TLRPC.TL_messageService)
@@ -11592,7 +11597,7 @@ public class MessageObject {
     }
 
     public boolean canEditMessage(TLRPC.Chat chat) {
-        return !isEphemeralAndNotWelcome() && canEditMessage(currentAccount, messageOwner, chat, scheduled);
+        return !deletedLocally && !isEphemeralAndNotWelcome() && canEditMessage(currentAccount, messageOwner, chat, scheduled);
     }
 
     public boolean canEditMessageScheduleTime(TLRPC.Chat chat) {
@@ -11600,6 +11605,7 @@ public class MessageObject {
     }
 
     public boolean canForwardMessage() {
+        if (deletedLocally) return false;
         if (isQuickReply()) return false;
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
         return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && !messageOwner.noforwards;

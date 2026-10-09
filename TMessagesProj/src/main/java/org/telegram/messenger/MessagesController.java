@@ -17719,8 +17719,111 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
-    protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> ids, long channelId) {
+    // Result of classifyDeletedMessages: for every key of the deleted messages map, the message ids that are kept.
+    private static class PreservedDeletes {
+        private final HashMap<Long, HashSet<Integer>> midsByKey = new HashMap<>();
+
+        HashSet<Integer> get(long key) {
+            return midsByKey.get(key);
+        }
+    }
+
+    // Storage queue only. Records the kept messages in DeletedMessagesStore and fills `preserve`.
+    private void classifyDeletedMessages(LongSparseArray<ArrayList<Integer>> deleted, PreservedDeletes preserve) {
+        if (deleted == null || !SharedConfig.keepDeletedMessages) {
+            return;
+        }
+        for (int a = 0, size = deleted.size(); a < size; a++) {
+            long key = deleted.keyAt(a);
+            ArrayList<Integer> mids = deleted.valueAt(a);
+            if (mids == null || mids.isEmpty()) {
+                continue;
+            }
+            LongSparseArray<ArrayList<Integer>> byDialog = getMessagesStorage().findPreservableDeletedMessages(key, mids);
+            if (byDialog == null) {
+                continue;
+            }
+            HashSet<Integer> kept = new HashSet<>();
+            for (int b = 0, size2 = byDialog.size(); b < size2; b++) {
+                ArrayList<Integer> list = byDialog.valueAt(b);
+                DeletedMessagesStore.getInstance(currentAccount).add(byDialog.keyAt(b), list);
+                kept.addAll(list);
+            }
+            if (!kept.isEmpty()) {
+                preserve.midsByKey.put(key, kept);
+            }
+        }
+    }
+
+    // Storage queue only. Returns the ids that still have to be deleted, and announces the kept ones.
+    private ArrayList<Integer> splitPreservedDeletes(long dialogId, ArrayList<Integer> ids, long channelId) {
+        if (!SharedConfig.keepDeletedMessages || ids == null || ids.isEmpty()) {
+            return ids;
+        }
+        LongSparseArray<ArrayList<Integer>> byDialog = getMessagesStorage().findPreservableDeletedMessages(dialogId, ids);
+        if (byDialog == null || byDialog.size() == 0) {
+            return ids;
+        }
+        HashSet<Integer> kept = new HashSet<>();
+        for (int b = 0, size = byDialog.size(); b < size; b++) {
+            ArrayList<Integer> list = byDialog.valueAt(b);
+            DeletedMessagesStore.getInstance(currentAccount).add(byDialog.keyAt(b), list);
+            kept.addAll(list);
+        }
+        ArrayList<Integer> remaining = new ArrayList<>();
+        final ArrayList<Integer> keptList = new ArrayList<>();
+        for (int a = 0, size = ids.size(); a < size; a++) {
+            Integer id = ids.get(a);
+            if (kept.contains(id)) {
+                keptList.add(id);
+            } else {
+                remaining.add(id);
+            }
+        }
+        AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.messagesPreservedAsDeleted, keptList, channelId));
+        return remaining;
+    }
+
+    protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> pushIds, long channelId) {
+        deleteMessagesByPush(dialogId, pushIds, channelId, true);
+    }
+
+    /**
+     * Removes every message that was kept after someone else deleted it, for this account. They go through the
+     * same local-only removal as a push delete (chats and dialog list update), but are not kept a second time.
+     */
+    public void clearSavedDeletedMessages() {
+        DeletedMessagesStore store = DeletedMessagesStore.getInstance(currentAccount);
+        HashMap<Long, ArrayList<Integer>> saved = store.snapshot();
+        // forget them first, so messages loaded from here on are no longer marked as deleted
+        store.clearAll();
+        for (Map.Entry<Long, ArrayList<Integer>> entry : saved.entrySet()) {
+            long dialogId = entry.getKey();
+            ArrayList<Integer> ids = entry.getValue();
+            if (ids == null || ids.isEmpty()) {
+                continue;
+            }
+            long channelId = 0;
+            if (DialogObject.isChatDialog(dialogId)) {
+                TLRPC.Chat chat = getChat(-dialogId);
+                if (chat == null) {
+                    chat = getMessagesStorage().getChatSync(-dialogId);
+                }
+                if (ChatObject.isChannel(chat)) {
+                    channelId = -dialogId;
+                }
+            }
+            deleteMessagesByPush(dialogId, ids, channelId, false);
+        }
+    }
+
+    private void deleteMessagesByPush(long dialogId, ArrayList<Integer> pushIds, long channelId, boolean allowPreserve) {
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
+            final ArrayList<Integer> ids = allowPreserve ? splitPreservedDeletes(dialogId, pushIds, channelId) : pushIds;
+            if (ids.isEmpty()) {
+                getMessagesStorage().deletePushMessages(dialogId, pushIds);
+                return;
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false);
                 if (channelId == 0) {
@@ -17746,7 +17849,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                 }
             });
-            getMessagesStorage().deletePushMessages(dialogId, ids);
+            getMessagesStorage().deletePushMessages(dialogId, pushIds);
             ArrayList<Long> dialogIds = getMessagesStorage().markMessagesAsDeleted(dialogId, ids, false, true, 0, 0);
             getMessagesStorage().updateDialogsWithDeletedMessages(dialogId, channelId, ids, dialogIds);
         });
@@ -21133,6 +21236,10 @@ public class MessagesController extends BaseController implements NotificationCe
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesFinal = scheduledDeletedMessages;
         LongSparseArray<ArrayList<Integer>> scheduledDeletedMessagesSentFinal = scheduledDeletedMessagesSent;
         LongSparseIntArray clearHistoryMessagesFinal = clearHistoryMessages;
+        // Decide once, before both halves of the delete handling, which messages are kept in the history.
+        // The storage queue is serial, so this finishes before the UI half and the storage half below run.
+        final PreservedDeletes preserve = new PreservedDeletes();
+        getMessagesStorage().getStorageQueue().postRunnable(() -> classifyDeletedMessages(deletedMessagesFinal, preserve));
         getMessagesStorage().getStorageQueue().postRunnable(() -> AndroidUtilities.runOnUIThread(() -> {
             int updateMask = 0;
             if (markAsReadMessagesInboxFinal != null || markAsReadMessagesOutboxFinal != null) {
@@ -21221,6 +21328,24 @@ public class MessagesController extends BaseController implements NotificationCe
                     ArrayList<Integer> arrayList = deletedMessagesFinal.valueAt(a);
                     if (arrayList == null) {
                         continue;
+                    }
+                    HashSet<Integer> preservedMids = preserve.get(dialogId);
+                    if (preservedMids != null && !preservedMids.isEmpty()) {
+                        ArrayList<Integer> preservedList = new ArrayList<>();
+                        ArrayList<Integer> remaining = new ArrayList<>();
+                        for (int p = 0, pSize = arrayList.size(); p < pSize; p++) {
+                            Integer pid = arrayList.get(p);
+                            if (preservedMids.contains(pid)) {
+                                preservedList.add(pid);
+                            } else {
+                                remaining.add(pid);
+                            }
+                        }
+                        getNotificationCenter().postNotificationName(NotificationCenter.messagesPreservedAsDeleted, preservedList, -dialogId);
+                        arrayList = remaining;
+                        if (arrayList.isEmpty()) {
+                            continue;
+                        }
                     }
                     getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, arrayList, -dialogId, false);
                     if (dialogId == 0) {
@@ -21340,8 +21465,22 @@ public class MessagesController extends BaseController implements NotificationCe
                 long key = deletedMessages.keyAt(a);
                 ArrayList<Integer> arrayList = deletedMessages.valueAt(a);
                 getMessagesStorage().getStorageQueue().postRunnable(() -> {
-                    ArrayList<Long> dialogIds = getMessagesStorage().markMessagesAsDeleted(key, arrayList, false, true, 0, 0);
-                    getMessagesStorage().updateDialogsWithDeletedMessages(key, -key, arrayList, dialogIds);
+                    ArrayList<Integer> toDelete = arrayList;
+                    HashSet<Integer> preservedMids = preserve.get(key);
+                    if (preservedMids != null && !preservedMids.isEmpty()) {
+                        toDelete = new ArrayList<>();
+                        for (int p = 0, pSize = arrayList.size(); p < pSize; p++) {
+                            Integer pid = arrayList.get(p);
+                            if (!preservedMids.contains(pid)) {
+                                toDelete.add(pid);
+                            }
+                        }
+                        if (toDelete.isEmpty()) {
+                            return;
+                        }
+                    }
+                    ArrayList<Long> dialogIds = getMessagesStorage().markMessagesAsDeleted(key, toDelete, false, true, 0, 0);
+                    getMessagesStorage().updateDialogsWithDeletedMessages(key, -key, toDelete, dialogIds);
                 });
             }
         }

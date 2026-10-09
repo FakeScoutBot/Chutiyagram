@@ -9,16 +9,22 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Cells.VoiceChangerPitchCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 
@@ -37,6 +43,10 @@ public class ScoutPreferenceActivity extends BaseFragment {
     private int voiceChangerRow;
     private int voicePitchRow;
     private int voiceChangerDetailRow;
+    private int keepDeletedSectionRow;
+    private int keepDeletedRow;
+    private int clearDeletedRow;
+    private int keepDeletedDetailRow;
     private int rowCount;
 
     private void updateRows() {
@@ -49,6 +59,10 @@ public class ScoutPreferenceActivity extends BaseFragment {
         voiceChangerRow = rowCount++;
         voicePitchRow = rowCount++;
         voiceChangerDetailRow = rowCount++;
+        keepDeletedSectionRow = rowCount++;
+        keepDeletedRow = rowCount++;
+        clearDeletedRow = rowCount++;
+        keepDeletedDetailRow = rowCount++;
     }
 
     @Override
@@ -112,6 +126,13 @@ public class ScoutPreferenceActivity extends BaseFragment {
                     ((TextCheckCell) view).setChecked(SharedConfig.voiceChangerEnabled);
                 }
                 listAdapter.notifyItemChanged(voicePitchRow);
+            } else if (position == keepDeletedRow) {
+                SharedConfig.setKeepDeletedMessages(!SharedConfig.keepDeletedMessages);
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(SharedConfig.keepDeletedMessages);
+                }
+            } else if (position == clearDeletedRow) {
+                confirmClearDeletedMessages();
             }
         });
 
@@ -129,6 +150,25 @@ public class ScoutPreferenceActivity extends BaseFragment {
         listView.setClipToPadding(false);
     }
 
+    private void confirmClearDeletedMessages() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle("Clear saved deleted messages?");
+        builder.setMessage("Messages that other people deleted and that are kept on this device will be removed from your chats. This cannot be undone.");
+        builder.setPositiveButton(LocaleController.getString(R.string.Clear), (dialog, which) -> {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    MessagesController.getInstance(a).clearSavedDeletedMessages();
+                }
+            }
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, "Saved deleted messages cleared").show();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
     private class ListAdapter extends RecyclerListView.SelectionAdapter {
 
         private final Context mContext;
@@ -140,7 +180,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == stealthModeRow || position == screenshotsRow || position == voiceChangerRow;
+            return position == stealthModeRow || position == screenshotsRow || position == voiceChangerRow || position == keepDeletedRow || position == clearDeletedRow;
         }
 
         @Override
@@ -162,6 +202,10 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 case 4:
                     view = new VoiceChangerPitchCell(mContext);
                     break;
+                case 5:
+                    view = new TextSettingsCell(mContext);
+                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                    break;
                 case 3:
                 default:
                     view = new TextCheckCell(mContext);
@@ -179,6 +223,8 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         privacyCell.setText("When enabled, your online status, typing status, read receipts, and story views are hidden from other users as much as Telegram's protocol allows. Sending a message will still reveal that you're online. That's a server-side restriction, not something a client can hide :)");
                     } else if (position == voiceChangerDetailRow) {
                         privacyCell.setText("Changes your voice in voice messages. Lower values make your voice deeper, higher values make it higher.");
+                    } else if (position == keepDeletedDetailRow) {
+                        privacyCell.setText("Messages that other people delete stay in your chats, in the same place. Secret chats, service messages and self-destructing messages are never kept. Messages you delete yourself are removed as usual.");
                     }
                     break;
                 case 2:
@@ -187,6 +233,8 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         headerCell.setText("Stealth Mode");
                     } else if (position == voiceChangerSectionRow) {
                         headerCell.setText("Voice Changer");
+                    } else if (position == keepDeletedSectionRow) {
+                        headerCell.setText("Deleted Messages");
                     }
                     break;
                 case 3:
@@ -197,22 +245,31 @@ public class ScoutPreferenceActivity extends BaseFragment {
                         textCheckCell.setTextAndCheck("Force Allow Screenshots", SharedConfig.forceAllowScreenshots, false);
                     } else if (position == voiceChangerRow) {
                         textCheckCell.setTextAndCheck("Voice Changer", SharedConfig.voiceChangerEnabled, true);
+                    } else if (position == keepDeletedRow) {
+                        textCheckCell.setTextAndCheck("Keep Deleted Messages", SharedConfig.keepDeletedMessages, true);
                     }
                     break;
                 case 4:
                     ((VoiceChangerPitchCell) holder.itemView).bind();
+                    break;
+                case 5:
+                    TextSettingsCell settingsCell = (TextSettingsCell) holder.itemView;
+                    settingsCell.setText("Clear Saved Deleted Messages", false);
+                    settingsCell.setTextColor(Theme.getColor(Theme.key_text_RedRegular));
                     break;
             }
         }
 
         @Override
         public int getItemViewType(int position) {
-            if (position == stealthModeDetailRow || position == voiceChangerDetailRow) {
+            if (position == stealthModeDetailRow || position == voiceChangerDetailRow || position == keepDeletedDetailRow) {
                 return 1;
-            } else if (position == stealthModeSectionRow || position == voiceChangerSectionRow) {
+            } else if (position == stealthModeSectionRow || position == voiceChangerSectionRow || position == keepDeletedSectionRow) {
                 return 2;
             } else if (position == voicePitchRow) {
                 return 4;
+            } else if (position == clearDeletedRow) {
+                return 5;
             } else if (position == stealthModeRow || position == screenshotsRow) {
                 return 3;
             }
