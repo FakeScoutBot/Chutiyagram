@@ -17747,6 +17747,7 @@ public class MessagesController extends BaseController implements NotificationCe
             if (byDialog == null) {
                 continue;
             }
+            cancelExpiryOfKeptMessages(byDialog);
             HashSet<Integer> kept = new HashSet<>();
             for (int b = 0, size2 = byDialog.size(); b < size2; b++) {
                 ArrayList<Integer> list = byDialog.valueAt(b);
@@ -17759,6 +17760,37 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    // A kept message with an auto-delete timer must not be expired by the batch of expiry tasks that is already loaded in memory
+    // (the database task is removed by MessagesStorage.findPreservableDeletedMessages). Only ever touches that in-memory batch.
+    private void cancelExpiryOfKeptMessages(LongSparseArray<ArrayList<Integer>> kept) {
+        if (kept == null || kept.size() == 0) {
+            return;
+        }
+        Utilities.stageQueue.postRunnable(() -> {
+            if (currentDeletingTaskMids == null) {
+                return;
+            }
+            for (int a = 0, N = kept.size(); a < N; a++) {
+                long did = kept.keyAt(a);
+                ArrayList<Integer> pending = currentDeletingTaskMids.get(did);
+                if (pending == null) {
+                    continue;
+                }
+                // a copy, the old list may be read on the UI thread by a batch that is being deleted right now
+                ArrayList<Integer> left = new ArrayList<>(pending);
+                left.removeAll(kept.valueAt(a));
+                if (left.size() == pending.size()) {
+                    continue;
+                }
+                if (left.isEmpty()) {
+                    currentDeletingTaskMids.remove(did);
+                } else {
+                    currentDeletingTaskMids.put(did, left);
+                }
+            }
+        });
+    }
+
     // Storage queue only. Returns the ids that still have to be deleted, and announces the kept ones.
     private ArrayList<Integer> splitPreservedDeletes(long dialogId, ArrayList<Integer> ids, long channelId) {
         if (!SharedConfig.keepDeletedMessages || ids == null || ids.isEmpty()) {
@@ -17768,6 +17800,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (byDialog == null || byDialog.size() == 0) {
             return ids;
         }
+        cancelExpiryOfKeptMessages(byDialog);
         HashSet<Integer> kept = new HashSet<>();
         for (int b = 0, size = byDialog.size(); b < size; b++) {
             ArrayList<Integer> list = byDialog.valueAt(b);
