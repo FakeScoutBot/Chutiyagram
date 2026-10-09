@@ -3,6 +3,8 @@ package org.telegram.messenger;
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLitePreparedStatement;
+import org.telegram.tgnet.NativeByteBuffer;
+import org.telegram.tgnet.TLRPC;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -32,6 +34,9 @@ public class DeletedMessagesStore extends BaseController {
         return local;
     }
 
+    // copies of kept channel messages are limited per channel, the oldest ones go first
+    private static final int MAX_SAVED_PER_CHANNEL = 1000;
+
     private final Object lock = new Object();
     private final DispatchQueue queue = new DispatchQueue("deletedMessagesQueue");
     // dialog id -> (message id -> unix time at which this client saw the deletion)
@@ -54,6 +59,7 @@ public class DeletedMessagesStore extends BaseController {
             File file = new File(ApplicationLoader.getFilesDirFixed(), "deleted_messages_" + currentAccount + ".db");
             database = new SQLiteDatabase(file.getPath());
             database.executeFast("CREATE TABLE IF NOT EXISTS deleted_messages(uid INTEGER, mid INTEGER, date INTEGER, PRIMARY KEY(uid, mid))").stepThis().dispose();
+            database.executeFast("CREATE TABLE IF NOT EXISTS deleted_message_data(uid INTEGER, mid INTEGER, data BLOB, PRIMARY KEY(uid, mid))").stepThis().dispose();
             cursor = database.queryFinalized("SELECT uid, mid, date FROM deleted_messages");
             while (cursor.next()) {
                 putInMemory(cursor.longValue(0), cursor.intValue(1), cursor.intValue(2));
@@ -136,6 +142,89 @@ public class DeletedMessagesStore extends BaseController {
         });
     }
 
+    /**
+     * Keeps a serialized copy of a kept channel message. A "too long" channel difference wipes the whole channel history
+     * from the message database, the copies are what puts the kept messages back (see getSavedMessages).
+     */
+    public void saveMessageData(long uid, int mid, TLRPC.Message message) {
+        if (message == null) {
+            return;
+        }
+        final NativeByteBuffer buffer;
+        try {
+            buffer = new NativeByteBuffer(message.getObjectSize());
+            message.serializeToStream(buffer);
+        } catch (Exception e) {
+            FileLog.e(e);
+            return;
+        }
+        queue.postRunnable(() -> {
+            synchronized (lock) {
+                ensureLoaded();
+                SQLitePreparedStatement state = null;
+                try {
+                    if (database == null) {
+                        return;
+                    }
+                    state = database.executeFast("REPLACE INTO deleted_message_data VALUES(?, ?, ?)");
+                    state.requery();
+                    state.bindLong(1, uid);
+                    state.bindInteger(2, mid);
+                    state.bindByteBuffer(3, buffer);
+                    state.step();
+                    state.dispose();
+                    state = null;
+                    database.executeFast("DELETE FROM deleted_message_data WHERE uid = " + uid + " AND mid NOT IN (SELECT mid FROM deleted_message_data WHERE uid = " + uid + " ORDER BY mid DESC LIMIT " + MAX_SAVED_PER_CHANNEL + ")").stepThis().dispose();
+                } catch (Exception e) {
+                    FileLog.e(e);
+                } finally {
+                    if (state != null) {
+                        state.dispose();
+                    }
+                    buffer.reuse();
+                }
+            }
+        });
+    }
+
+    /** The saved copies of the kept messages of a dialog, newest first. Only messages that are still marked as deleted. */
+    public ArrayList<TLRPC.Message> getSavedMessages(long uid) {
+        ArrayList<TLRPC.Message> result = new ArrayList<>();
+        synchronized (lock) {
+            ensureLoaded();
+            if (database == null) {
+                return result;
+            }
+            SQLiteCursor cursor = null;
+            try {
+                cursor = database.queryFinalized("SELECT mid, data FROM deleted_message_data WHERE uid = " + uid + " ORDER BY mid DESC");
+                while (cursor.next()) {
+                    int mid = cursor.intValue(0);
+                    HashMap<Integer, Integer> map = deleted.get(uid);
+                    NativeByteBuffer data = cursor.byteBufferValue(1);
+                    if (data == null) {
+                        continue;
+                    }
+                    TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                    data.reuse();
+                    if (message == null || message instanceof TLRPC.TL_messageEmpty || map == null || !map.containsKey(mid)) {
+                        continue;
+                    }
+                    message.id = mid;
+                    message.dialog_id = uid;
+                    result.add(message);
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (cursor != null) {
+                    cursor.dispose();
+                }
+            }
+        }
+        return result;
+    }
+
     /** A copy of everything stored, dialog id to message ids. */
     public HashMap<Long, ArrayList<Integer>> snapshot() {
         HashMap<Long, ArrayList<Integer>> result = new HashMap<>();
@@ -160,6 +249,7 @@ public class DeletedMessagesStore extends BaseController {
                 }
                 try {
                     database.executeFast("DELETE FROM deleted_messages").stepThis().dispose();
+                    database.executeFast("DELETE FROM deleted_message_data").stepThis().dispose();
                 } catch (Exception e) {
                     FileLog.e(e);
                 }
