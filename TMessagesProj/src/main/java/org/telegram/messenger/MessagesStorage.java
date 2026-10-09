@@ -11429,6 +11429,8 @@ public class MessagesStorage extends BaseController {
                 }
                 message.unread = false;
                 message.media_unread = false;
+                // no auto-delete timer anymore, otherwise the message would be expired locally again
+                message.ttl_period = 0;
                 toPut.add(message);
             }
             FileLog.d("KeepDeleted: restoring " + toPut.size() + " kept messages into dialog=" + did);
@@ -15365,8 +15367,10 @@ public class MessagesStorage extends BaseController {
             return null;
         }
         LongSparseArray<ArrayList<Integer>> result = null;
+        LongSparseArray<ArrayList<Integer>> withTimer = null;
         SQLiteCursor cursor = null;
         int rows = 0;
+        int now = getConnectionsManager().getCurrentTime();
         try {
             String ids = TextUtils.join(",", messages);
             if (dialogId != 0) {
@@ -15397,8 +15401,14 @@ public class MessagesStorage extends BaseController {
                     FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (service message " + message.action.getClass().getSimpleName() + ")");
                     continue;
                 }
-                if (message.ttl_period != 0 || message.ttl != 0) {
-                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (auto-delete timer ttl_period=" + message.ttl_period + " ttl=" + message.ttl + ")");
+                if (message.ttl != 0) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (self-destruct timer ttl=" + message.ttl + ")");
+                    continue;
+                }
+                // In a chat with an auto-delete timer the server also deletes every message when its time runs out, that
+                // is not worth keeping. A delete before that (by an admin or the sender) is.
+                if (message.ttl_period != 0 && now + 30 >= message.date + message.ttl_period) {
+                    FileLog.d("KeepDeleted: skip " + did + "_" + mid + " (auto-delete timer ran out, ttl_period=" + message.ttl_period + ")");
                     continue;
                 }
                 if (message.media != null && (message.media.ttl_seconds != 0 || message.media instanceof TLRPC.TL_messageMediaGeoLive)) {
@@ -15418,12 +15428,33 @@ public class MessagesStorage extends BaseController {
                     result.put(did, list);
                 }
                 list.add(mid);
+                if (message.ttl_period != 0) {
+                    if (withTimer == null) {
+                        withTimer = new LongSparseArray<>();
+                    }
+                    ArrayList<Integer> timerList = withTimer.get(did);
+                    if (timerList == null) {
+                        timerList = new ArrayList<>();
+                        withTimer.put(did, timerList);
+                    }
+                    timerList.add(mid);
+                }
             }
         } catch (Exception e) {
             checkSQLException(e);
         } finally {
             if (cursor != null) {
                 cursor.dispose();
+            }
+        }
+        if (withTimer != null) {
+            // the client removes messages with an auto-delete timer locally when it runs out, a kept message must not go that way
+            try {
+                for (int a = 0, N = withTimer.size(); a < N; a++) {
+                    database.executeFast(String.format(Locale.US, "DELETE FROM enc_tasks_v4 WHERE mid IN(%s) AND uid = %d AND media = 0", TextUtils.join(",", withTimer.valueAt(a)), withTimer.keyAt(a))).stepThis().dispose();
+                }
+            } catch (Exception e) {
+                checkSQLException(e);
             }
         }
         int keptCount = 0;
