@@ -5,6 +5,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import android.content.Context;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
@@ -121,6 +122,9 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         } else {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            if (fitBottomViewWidthToPopup()) {
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            }
         }
         maxHeight = getMeasuredHeight();
         syncBottomViewOffset();
@@ -137,6 +141,24 @@ public class ChatScrimPopupContainerLayout extends LinearLayout {
     public void applyViewBottom(FrameLayout bottomView) {
         this.bottomView = bottomView;
         syncBottomViewOffset();
+    }
+
+
+    private boolean fitBottomViewWidthToPopup() {
+        if (bottomView == null || popupWindowLayout == null || popupWindowLayout.getSwipeBack() == null) {
+            return false;
+        }
+        View menu = popupWindowLayout.getSwipeBack().getChildAt(0);
+        if (menu == null || menu.getMeasuredWidth() <= 0) {
+            return false;
+        }
+        int width = menu.getMeasuredWidth() + popupWindowLayout.getPaddingLeft() + popupWindowLayout.getPaddingRight();
+        ViewGroup.LayoutParams lp = bottomView.getLayoutParams();
+        if (lp.width == width) {
+            return false;
+        }
+        lp.width = width;
+        return true;
     }
     
     private void syncBottomViewOffset() {
