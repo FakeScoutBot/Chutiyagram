@@ -1,82 +1,76 @@
 package org.telegram.ui;
 
+import static org.telegram.messenger.AndroidUtilities.dp;
+
+import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.drawable.GradientDrawable;
+import android.text.TextUtils;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import org.telegram.messenger.LocaleController;
-import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.R;
-import org.telegram.messenger.SharedConfig;
-import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.ActionBar;
-import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.ActionBar.ThemeDescription;
-import org.telegram.ui.Cells.HeaderCell;
-import org.telegram.ui.Cells.TextCheckCell;
-import org.telegram.ui.Cells.TextSettingsCell;
-import org.telegram.ui.Cells.VoiceChangerPitchCell;
-import org.telegram.ui.Cells.TextInfoPrivacyCell;
-import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Components.UItem;
+import org.telegram.ui.Components.UniversalAdapter;
+import org.telegram.ui.Components.UniversalRecyclerView;
 
 import java.util.ArrayList;
 
+/**
+ * ScoutGram Preferences: landing screen with the ScoutGram identity header,
+ * feature categories and community links.
+ * Category screens are not wired up yet, so no setting is reachable from here for now.
+ */
 public class ScoutPreferenceActivity extends BaseFragment {
 
-    private RecyclerListView listView;
-    private ListAdapter listAdapter;
+    private static final String CHANNEL_USERNAME = "scoutgram";
+    private static final String GROUP_USERNAME = "scoutgramchat";
 
-    private int stealthModeSectionRow;
-    private int stealthModeRow;
-    private int screenshotsRow;
-    private int stealthModeDetailRow;
-    private int voiceChangerSectionRow;
-    private int voiceChangerRow;
-    private int voicePitchRow;
-    private int voiceChangerDetailRow;
-    private int keepDeletedSectionRow;
-    private int keepDeletedRow;
-    private int clearDeletedRow;
-    private int keepDeletedDetailRow;
-    private int rowCount;
+    private static final int ID_GHOST_MODE = 1;
+    private static final int ID_SPY = 2;
+    private static final int ID_VOICE_CHANGER = 3;
+    private static final int ID_CHANNEL = 10;
+    private static final int ID_GROUP = 11;
 
-    private void updateRows() {
-        rowCount = 0;
-        stealthModeSectionRow = rowCount++;
-        stealthModeRow = rowCount++;
-        screenshotsRow = rowCount++;
-        stealthModeDetailRow = rowCount++;
-        voiceChangerSectionRow = rowCount++;
-        voiceChangerRow = rowCount++;
-        voicePitchRow = rowCount++;
-        voiceChangerDetailRow = rowCount++;
-        keepDeletedSectionRow = rowCount++;
-        keepDeletedRow = rowCount++;
-        clearDeletedRow = rowCount++;
-        keepDeletedDetailRow = rowCount++;
-    }
+    private FrameLayout contentView;
+    private UniversalRecyclerView listView;
+    private View actionBarBackground;
 
-    @Override
-    public boolean onFragmentCreate() {
-        super.onFragmentCreate();
-        updateRows();
-        return true;
-    }
+    private FrameLayout headerView;
+    private FrameLayout logoView;
+    private TextView titleView;
+    private TextView versionView;
+
+    private boolean actionBarVisible;
+    private ValueAnimator actionBarVisibleAnimator;
 
     @Override
     public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle("Scout Preference");
+        actionBar.setUseContainerForTitles();
+        actionBar.setTitle(getTitle());
+        actionBar.setAddToContainer(false);
+        actionBar.setOccupyStatusBar(true);
+        actionBar.setBackgroundColor(Color.TRANSPARENT);
+        actionBar.setBackground(null);
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
@@ -89,54 +83,167 @@ public class ScoutPreferenceActivity extends BaseFragment {
             actionBar.setBackButtonImage(R.drawable.ic_ab_close);
         }
 
-        listAdapter = new ListAdapter(context);
+        contentView = new FrameLayout(context);
 
-        fragmentView = new FrameLayout(context);
-        FrameLayout frameLayout = (FrameLayout) fragmentView;
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+        buildHeader(context);
 
-        listView = new RecyclerListView(context);
+        listView = new UniversalRecyclerView(this, this::fillItems, this::onItemClick, null);
         listView.setSections();
-        actionBar.setAdaptiveBackground(listView);
-        listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
+        listView.adapter.setApplyBackground(false);
+        listView.setClipToPadding(false);
+        listView.setPadding(0, AndroidUtilities.statusBarHeight + dp(12), 0, AndroidUtilities.navigationBarHeight);
+        listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
-            public boolean supportsPredictiveItemAnimations() {
-                return false;
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                updateActionBarVisible(false, true);
             }
         });
-        listView.setVerticalScrollBarEnabled(false);
-        listView.setLayoutAnimation(null);
-        listView.setItemAnimator(null);
-        frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        listView.setAdapter(listAdapter);
-        listView.setOnItemClickListener((view, position) -> {
-            if (position == stealthModeRow) {
-                SharedConfig.setStealthModeEnabled(!SharedConfig.stealthModeEnabled);
-                if (view instanceof TextCheckCell) {
-                    ((TextCheckCell) view).setChecked(SharedConfig.stealthModeEnabled);
-                }
-            } else if (position == screenshotsRow) {
-                SharedConfig.setForceAllowScreenshots(!SharedConfig.forceAllowScreenshots);
-                if (view instanceof TextCheckCell) {
-                    ((TextCheckCell) view).setChecked(SharedConfig.forceAllowScreenshots);
-                }
-            } else if (position == voiceChangerRow) {
-                SharedConfig.setVoiceChangerEnabled(!SharedConfig.voiceChangerEnabled);
-                if (view instanceof TextCheckCell) {
-                    ((TextCheckCell) view).setChecked(SharedConfig.voiceChangerEnabled);
-                }
-                listAdapter.notifyItemChanged(voicePitchRow);
-            } else if (position == keepDeletedRow) {
-                SharedConfig.setKeepDeletedMessages(!SharedConfig.keepDeletedMessages);
-                if (view instanceof TextCheckCell) {
-                    ((TextCheckCell) view).setChecked(SharedConfig.keepDeletedMessages);
-                }
-            } else if (position == clearDeletedRow) {
-                confirmClearDeletedMessages();
-            }
-        });
+        contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
 
-        return fragmentView;
+        actionBarBackground = new View(context) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(@NonNull Canvas canvas) {
+                final int height = actionBar.getHeight();
+                paint.setColor(getThemedColor(Theme.key_actionBarDefault));
+                canvas.drawRect(0, 0, getMeasuredWidth(), height, paint);
+                if (getParentLayout() != null) {
+                    getParentLayout().drawHeaderShadow(canvas, height);
+                }
+            }
+        };
+        contentView.addView(actionBarBackground, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 200, Gravity.TOP));
+        contentView.addView(actionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL | Gravity.TOP));
+
+        updateColors();
+        updateActionBarVisible(true, false);
+        listView.adapter.update(false);
+
+        return fragmentView = contentView;
+    }
+
+    private void buildHeader(Context context) {
+        headerView = new FrameLayout(context);
+
+        // Logo: gradient disc with the Scout mark.
+        logoView = new FrameLayout(context);
+        final GradientDrawable disc = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF35B4F5, 0xFF2B6FE6, 0xFF5B47D6}
+        );
+        disc.setShape(GradientDrawable.OVAL);
+        disc.setStroke(dp(2), 0x26FFFFFF);
+        logoView.setBackground(disc);
+        logoView.setElevation(dp(2));
+
+        final ImageView mark = new ImageView(context);
+        mark.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        mark.setImageResource(R.drawable.settings_scout);
+        logoView.addView(mark, LayoutHelper.createFrame(44, 44, Gravity.CENTER));
+        headerView.addView(logoView, LayoutHelper.createFrame(84, 84, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 16, 0, 0));
+
+        titleView = new TextView(context);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+        titleView.setTypeface(AndroidUtilities.bold());
+        titleView.setGravity(Gravity.CENTER);
+        titleView.setSingleLine();
+        titleView.setEllipsize(TextUtils.TruncateAt.END);
+        titleView.setText("ScoutGram");
+        headerView.addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 16, 112, 16, 0));
+
+        versionView = new TextView(context);
+        versionView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        versionView.setGravity(Gravity.CENTER);
+        versionView.setSingleLine();
+        versionView.setEllipsize(TextUtils.TruncateAt.END);
+        versionView.setText(getVersionCaption());
+        headerView.addView(versionView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 16, 144, 16, 0));
+    }
+
+    private String getVersionCaption() {
+        final String version = BuildVars.BUILD_VERSION_STRING;
+        return TextUtils.isEmpty(version) ? "" : version;
+    }
+
+    private String getTitle() {
+        return "ScoutGram Preferences";
+    }
+
+    private void updateColors() {
+        if (contentView == null) {
+            return;
+        }
+        contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        actionBar.setTitleColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+        actionBar.setItemsColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), false);
+        titleView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
+        versionView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+        actionBarBackground.invalidate();
+    }
+
+    private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        items.add(UItem.asCustomShadow(headerView, 176));
+
+        items.add(UItem.asHeader("Categories"));
+        items.add(UItem.asButton(ID_GHOST_MODE, R.drawable.scout_ic_ghost, "Ghost Mode"));
+        items.add(UItem.asButton(ID_SPY, R.drawable.scout_ic_spy, "Spy"));
+        items.add(UItem.asButton(ID_VOICE_CHANGER, R.drawable.scout_ic_voice, "Voice Changer"));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader("Links"));
+        items.add(UItem.asButton(ID_CHANNEL, R.drawable.scout_ic_channel, "Channel", "@" + CHANNEL_USERNAME));
+        items.add(UItem.asButton(ID_GROUP, R.drawable.outline_groups_24, "Group", "@" + GROUP_USERNAME));
+        items.add(UItem.asShadow(null));
+    }
+
+    private void onItemClick(UItem item, View view, int position, float x, float y) {
+        switch (item.id) {
+            case ID_CHANNEL:
+                getMessagesController().openByUserName(CHANNEL_USERNAME, this, 1);
+                break;
+            case ID_GROUP:
+                getMessagesController().openByUserName(GROUP_USERNAME, this, 1);
+                break;
+            case ID_GHOST_MODE:
+            case ID_SPY:
+            case ID_VOICE_CHANGER:
+                // Category screens come in the next step.
+                break;
+        }
+    }
+
+    private void updateActionBarVisible(boolean force, boolean animated) {
+        final boolean visible;
+        if (listView != null && listView.getChildCount() > 0) {
+            final View firstChild = listView.getChildAt(0);
+            visible = listView.getChildAdapterPosition(firstChild) > 0
+                    || firstChild.getY() + firstChild.getHeight() < actionBar.getHeight();
+        } else {
+            visible = false;
+        }
+        if (actionBarVisible == visible && !force) {
+            return;
+        }
+        actionBarVisible = visible;
+        if (actionBarVisibleAnimator != null) {
+            actionBarVisibleAnimator.cancel();
+            actionBarVisibleAnimator = null;
+        }
+        if (!animated) {
+            actionBar.getTitlesContainer().setAlpha(visible ? 1.0f : 0.0f);
+            actionBarBackground.setAlpha(visible ? 1.0f : 0.0f);
+        } else {
+            actionBarVisibleAnimator = ValueAnimator.ofFloat(actionBar.getTitlesContainer().getAlpha(), visible ? 1.0f : 0.0f);
+            actionBarVisibleAnimator.addUpdateListener(a -> {
+                final float t = (float) a.getAnimatedValue();
+                actionBar.getTitlesContainer().setAlpha(t);
+                actionBarBackground.setAlpha(t);
+            });
+            actionBarVisibleAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+            actionBarVisibleAnimator.setDuration(420);
+            actionBarVisibleAnimator.start();
+        }
     }
 
     @Override
@@ -146,163 +253,15 @@ public class ScoutPreferenceActivity extends BaseFragment {
 
     @Override
     public void onInsets(int left, int top, int right, int bottom) {
-        listView.setPadding(0, 0, 0, bottom);
-        listView.setClipToPadding(false);
-    }
-
-    private void confirmClearDeletedMessages() {
-        if (getParentActivity() == null) {
-            return;
-        }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle("Clear saved deleted messages?");
-        builder.setMessage("Messages that other people deleted and that are kept on this device will be removed from your chats. This cannot be undone.");
-        builder.setPositiveButton(LocaleController.getString(R.string.Clear), (dialog, which) -> {
-            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-                if (UserConfig.getInstance(a).isClientActivated()) {
-                    MessagesController.getInstance(a).clearSavedDeletedMessages();
-                }
-            }
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, "Saved deleted messages cleared").show();
-        });
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        showDialog(builder.create());
-    }
-
-    private class ListAdapter extends RecyclerListView.SelectionAdapter {
-
-        private final Context mContext;
-
-        public ListAdapter(Context context) {
-            mContext = context;
-        }
-
-        @Override
-        public boolean isEnabled(RecyclerView.ViewHolder holder) {
-            int position = holder.getAdapterPosition();
-            return position == stealthModeRow || position == screenshotsRow || position == voiceChangerRow || position == keepDeletedRow || position == clearDeletedRow;
-        }
-
-        @Override
-        public int getItemCount() {
-            return rowCount;
-        }
-
-        @NonNull
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view;
-            switch (viewType) {
-                case 1:
-                    view = new TextInfoPrivacyCell(mContext);
-                    break;
-                case 2:
-                    view = new HeaderCell(mContext);
-                    break;
-                case 4:
-                    view = new VoiceChangerPitchCell(mContext);
-                    break;
-                case 5:
-                    view = new TextSettingsCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case 3:
-                default:
-                    view = new TextCheckCell(mContext);
-                    break;
-            }
-            return new RecyclerListView.Holder(view);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-            switch (holder.getItemViewType()) {
-                case 1:
-                    TextInfoPrivacyCell privacyCell = (TextInfoPrivacyCell) holder.itemView;
-                    if (position == stealthModeDetailRow) {
-                        privacyCell.setText("When enabled, your online status, typing status, read receipts, and story views are hidden from other users as much as Telegram's protocol allows. Sending a message will still reveal that you're online. That's a server-side restriction, not something a client can hide :)");
-                    } else if (position == voiceChangerDetailRow) {
-                        privacyCell.setText("Changes your voice in voice messages. Lower values make your voice deeper, higher values make it higher.");
-                    } else if (position == keepDeletedDetailRow) {
-                        privacyCell.setText("Messages that other people delete stay in your chats, in the same place. Secret chats, service messages and self-destructing messages are never kept. Messages you delete yourself are removed as usual.");
-                    }
-                    break;
-                case 2:
-                    HeaderCell headerCell = (HeaderCell) holder.itemView;
-                    if (position == stealthModeSectionRow) {
-                        headerCell.setText("Stealth Mode");
-                    } else if (position == voiceChangerSectionRow) {
-                        headerCell.setText("Voice Changer");
-                    } else if (position == keepDeletedSectionRow) {
-                        headerCell.setText("Deleted Messages");
-                    }
-                    break;
-                case 3:
-                    TextCheckCell textCheckCell = (TextCheckCell) holder.itemView;
-                    if (position == stealthModeRow) {
-                        textCheckCell.setTextAndCheck("Stealth Mode", SharedConfig.stealthModeEnabled, true);
-                    } else if (position == screenshotsRow) {
-                        textCheckCell.setTextAndCheck("Force Allow Screenshots", SharedConfig.forceAllowScreenshots, false);
-                    } else if (position == voiceChangerRow) {
-                        textCheckCell.setTextAndCheck("Voice Changer", SharedConfig.voiceChangerEnabled, true);
-                    } else if (position == keepDeletedRow) {
-                        textCheckCell.setTextAndCheck("Keep Deleted Messages", SharedConfig.keepDeletedMessages, true);
-                    }
-                    break;
-                case 4:
-                    ((VoiceChangerPitchCell) holder.itemView).bind();
-                    break;
-                case 5:
-                    TextSettingsCell settingsCell = (TextSettingsCell) holder.itemView;
-                    settingsCell.setText("Clear Saved Deleted Messages", false);
-                    settingsCell.setTextColor(Theme.getColor(Theme.key_text_RedRegular));
-                    break;
-            }
-        }
-
-        @Override
-        public int getItemViewType(int position) {
-            if (position == stealthModeDetailRow || position == voiceChangerDetailRow || position == keepDeletedDetailRow) {
-                return 1;
-            } else if (position == stealthModeSectionRow || position == voiceChangerSectionRow || position == keepDeletedSectionRow) {
-                return 2;
-            } else if (position == voicePitchRow) {
-                return 4;
-            } else if (position == clearDeletedRow) {
-                return 5;
-            } else if (position == stealthModeRow || position == screenshotsRow) {
-                return 3;
-            }
-            return 3;
+        if (listView != null) {
+            listView.setPadding(0, top + dp(12), 0, bottom);
         }
     }
 
     @Override
-    public ArrayList<ThemeDescription> getThemeDescriptions() {
-        ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{HeaderCell.class, TextCheckCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{TextInfoPrivacyCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextInfoPrivacyCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText4));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
-
-        return themeDescriptions;
+    public ArrayList<org.telegram.ui.ActionBar.ThemeDescription> getThemeDescriptions() {
+        final ArrayList<org.telegram.ui.ActionBar.ThemeDescription> descriptions = new ArrayList<>();
+        descriptions.add(new org.telegram.ui.ActionBar.ThemeDescription(fragmentView, org.telegram.ui.ActionBar.ThemeDescription.FLAG_BACKGROUND, null, null, null, () -> updateColors(), Theme.key_windowBackgroundGray));
+        return descriptions;
     }
 }
