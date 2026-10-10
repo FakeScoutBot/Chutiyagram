@@ -310,6 +310,20 @@ public class SharedConfig {
     public static boolean forceAllowScreenshots = false;
     public static boolean voiceChangerEnabled = false;
     public static boolean keepDeletedMessages = false;
+    public static boolean deletedTranslucent = true;
+    public static int deletedMarkIcon = 0;
+    public static int deletedMarkColor = 0;
+    public static int deletedStyleVersion = 0;
+    public static final int[] DELETED_MARK_ICONS = {
+            R.drawable.scout_ic_deleted_trash,
+            R.drawable.scout_ic_deleted_trash_filled,
+            R.drawable.scout_ic_deleted_cancel,
+            R.drawable.scout_ic_deleted_cross,
+            R.drawable.scout_ic_ghost_filled
+    };
+    public static final int[] DELETED_MARK_COLORS = {
+            0, 0xFFFF0000, 0xFFDC2626, 0xFFDB2777, 0xFFC026D3, 0xFF9333EA, 0xFF4F46E5, 0xFF2563EB
+    };
     public static int voiceChangerSemitones = VoiceChanger.DEFAULT_SEMITONES;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
@@ -661,6 +675,9 @@ public class SharedConfig {
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
             voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
             keepDeletedMessages = preferences.getBoolean("keepDeletedMessages", false);
+            deletedTranslucent = preferences.getBoolean("deletedTranslucent", true);
+            deletedMarkIcon = preferences.getInt("deletedMarkIcon", 0);
+            deletedMarkColor = preferences.getInt("deletedMarkColor", 0);
             voiceChangerSemitones = VoiceChanger.clamp(preferences.getInt("voiceChangerSemitones", VoiceChanger.DEFAULT_SEMITONES));
             directShareHash = preferences.getString("directShareHash2", null);
             useThreeLinesLayout = preferences.getBoolean("useThreeLinesLayout", false);
@@ -1384,6 +1401,31 @@ public class SharedConfig {
         keepDeletedMessages = value;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         preferences.edit().putBoolean("keepDeletedMessages", keepDeletedMessages).apply();
+    }
+    
+    public static int getDeletedMarkIconRes() {
+        return DELETED_MARK_ICONS[Math.max(0, Math.min(deletedMarkIcon, DELETED_MARK_ICONS.length - 1))];
+    }
+
+    public static void setDeletedTranslucent(boolean value) {
+        if (deletedTranslucent == value) return;
+        deletedTranslucent = value;
+        deletedStyleVersion++;
+        MessagesController.getGlobalMainSettings().edit().putBoolean("deletedTranslucent", value).apply();
+    }
+
+    public static void setDeletedMarkIcon(int index) {
+        if (deletedMarkIcon == index) return;
+        deletedMarkIcon = index;
+        deletedStyleVersion++;
+        MessagesController.getGlobalMainSettings().edit().putInt("deletedMarkIcon", index).apply();
+    }
+
+    public static void setDeletedMarkColor(int color) {
+        if (deletedMarkColor == color) return;
+        deletedMarkColor = color;
+        deletedStyleVersion++;
+        MessagesController.getGlobalMainSettings().edit().putInt("deletedMarkColor", color).apply();
     }
 
     public static void setVoiceChangerEnabled(boolean value) {

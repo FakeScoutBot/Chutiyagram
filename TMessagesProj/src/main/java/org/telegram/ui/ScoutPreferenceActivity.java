@@ -209,6 +209,8 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 presentFragment(new GhostModeActivity());
                 break;
             case ID_SPY:
+                presentFragment(new SpyActivity());
+                break;
             case ID_VOICE_CHANGER:
                 // Category screens come in the next step.
                 break;
