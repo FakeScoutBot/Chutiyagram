@@ -48,11 +48,8 @@ public class ThemePreviewMessagesCell extends LinearLayout {
     public final static int TYPE_REACTIONS_DOUBLE_TAP = 2;
     public final static int TYPE_PEER_COLOR = 3;
     public final static int TYPE_GROUP_PEER_COLOR = 4;
-    public final static int TYPE_DELETED_PREVIEW = 5;
 
     private final Runnable invalidateRunnable = this::invalidate;
-    
-    public boolean drawShadow = true;
 
     private BackgroundGradientDrawable.Disposable backgroundGradientDisposable;
     private BackgroundGradientDrawable.Disposable oldBackgroundGradientDisposable;
@@ -163,24 +160,6 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message1.forceAvatar = true;
             message1.resetLayout();
             message1.eventId = 1;
-        } else if (type == TYPE_DELETED_PREVIEW) {
-            TLRPC.Message message = new TLRPC.TL_message();
-            message.message = "This message was deleted";
-            message.date = date + 60;
-            message.dialog_id = 1;
-            message.flags = 259;
-            message.from_id = new TLRPC.TL_peerUser();
-            message.from_id.user_id = UserConfig.getInstance(currentAccount).getClientUserId(); // current user
-            message.id = 1;
-            message.media = new TLRPC.TL_messageMediaEmpty();
-            message.out = false;
-            message.peer_id = new TLRPC.TL_peerUser();
-            message.peer_id.user_id = 0;
-
-            message1 = new MessageObject(currentAccount, message, true, false);
-            message1.resetLayout();
-            message1.eventId = 1;
-            message1.deletedLocally = true;
         } else if (type == TYPE_REACTIONS_DOUBLE_TAP)  {
             TLRPC.Message message = new TLRPC.TL_message();
             message.message = LocaleController.getString(R.string.DoubleTapPreviewMessage);
@@ -447,7 +426,7 @@ public class ThemePreviewMessagesCell extends LinearLayout {
                     return type == progress;
                 }
             });
-            cells[a].isChat = type == TYPE_REACTIONS_DOUBLE_TAP || type == TYPE_GROUP_PEER_COLOR || type == TYPE_DELETED_PREVIEW;
+            cells[a].isChat = type == TYPE_REACTIONS_DOUBLE_TAP || type == TYPE_GROUP_PEER_COLOR;
             cells[a].setFullyDraw(true);
             MessageObject messageObject = a == 0 ? message2 : message1;
             if (messageObject == null) {
@@ -460,16 +439,6 @@ public class ThemePreviewMessagesCell extends LinearLayout {
 
     public ChatMessageCell[] getCells() {
         return cells;
-    }
-    
-    public void refreshDeletedPreview() {
-        for (int a = 0; a < cells.length; a++) {
-            if (cells[a] != null && cells[a].getMessageObject() != null) {
-                cells[a].setMessageObject(cells[a].getMessageObject(), null, false, false, false);
-                cells[a].requestLayout();
-            }
-        }
-        invalidate();
     }
 
     @Override
@@ -586,10 +555,8 @@ public class ThemePreviewMessagesCell extends LinearLayout {
                 invalidate();
             }
         }
-        if (drawShadow) {
-            shadowDrawable.setBounds(0, 0, getMeasuredWidth(), getMeasuredHeight());
-            shadowDrawable.draw(canvas);
-        }
+        shadowDrawable.setBounds(0, 0, getMeasuredWidth(), getMeasuredHeight());
+        shadowDrawable.draw(canvas);
     }
 
     private boolean allowLoadingOnTouch() {
