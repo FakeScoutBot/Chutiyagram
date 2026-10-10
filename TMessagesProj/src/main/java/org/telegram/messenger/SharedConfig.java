@@ -306,7 +306,6 @@ public class SharedConfig {
     public static boolean ghostHideOnline = false;
     public static boolean ghostDontSendTyping = false;
     public static boolean ghostReadOnInteract = false;
-    public static boolean ghostScheduleMessages = false;
     public static boolean ghostShowStatusIcon = true;
     public static boolean forceAllowScreenshots = false;
     public static boolean voiceChangerEnabled = false;
@@ -664,10 +663,6 @@ public class SharedConfig {
             ghostHideOnline = preferences.getBoolean("ghostHideOnline", legacyStealthMode);
             ghostDontSendTyping = preferences.getBoolean("ghostDontSendTyping", legacyStealthMode);
             ghostReadOnInteract = preferences.getBoolean("ghostReadOnInteract", false);
-            ghostScheduleMessages = preferences.getBoolean("ghostScheduleMessages", false);
-            if (ghostReadOnInteract && ghostScheduleMessages) {
-                ghostScheduleMessages = false; // mutually exclusive
-            }
             ghostShowStatusIcon = preferences.getBoolean("ghostShowStatusIcon", true);
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
             voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
@@ -1368,28 +1363,7 @@ public class SharedConfig {
             return;
         }
         ghostReadOnInteract = value;
-        final SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings().edit();
-        editor.putBoolean("ghostReadOnInteract", value);
-        if (value && ghostScheduleMessages) {
-            // Read on Interact and Schedule Messages are opposites: turning one on turns the other off.
-            ghostScheduleMessages = false;
-            editor.putBoolean("ghostScheduleMessages", false);
-        }
-        editor.apply();
-    }
-
-    public static void setGhostScheduleMessages(boolean value) {
-        if (ghostScheduleMessages == value) {
-            return;
-        }
-        ghostScheduleMessages = value;
-        final SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings().edit();
-        editor.putBoolean("ghostScheduleMessages", value);
-        if (value && ghostReadOnInteract) {
-            ghostReadOnInteract = false;
-            editor.putBoolean("ghostReadOnInteract", false);
-        }
-        editor.apply();
+        MessagesController.getGlobalMainSettings().edit().putBoolean("ghostReadOnInteract", value).apply();
     }
 
     public static void setGhostShowStatusIcon(boolean value) {

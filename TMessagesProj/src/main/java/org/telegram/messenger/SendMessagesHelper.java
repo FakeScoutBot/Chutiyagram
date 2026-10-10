@@ -2055,30 +2055,6 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
     }
 
-    /**
-     * Ghost Mode > Schedule Messages: an outgoing message that is not scheduled yet goes into Telegram's schedule
-     * queue instead, so the server delivers it a few seconds later and we never send the "send" request that would
-     * show us online. Returns scheduleDate unchanged when the option is off, the message is already scheduled, or
-     * Telegram doesn't allow scheduling here.
-     */
-    private int getGhostScheduleDate(int scheduleDate, long dialogId, MessageObject replyToTopMsg, boolean quickReply, long payStars, boolean notSchedulable) {
-        if (!SharedConfig.ghostScheduleMessages || scheduleDate != 0 || dialogId == 0 || quickReply || notSchedulable || payStars > 0) {
-            return scheduleDate;
-        }
-        if (DialogObject.isEncryptedDialog(dialogId) || dialogId == getUserConfig().getClientUserId()) { // secret chats, Saved Messages
-            return scheduleDate;
-        }
-        final MessagesController controller = getMessagesController();
-        if (controller.isMonoForum(dialogId) || controller.getSendPaidMessagesStars(dialogId) > 0) {
-            return scheduleDate;
-        }
-        // Same rules as ChatActivity.canScheduleMessage(): no scheduling in a forum without a topic or in comment threads.
-        if (controller.isForum(dialogId) != (replyToTopMsg != null)) {
-            return scheduleDate;
-        }
-        return getConnectionsManager().getCurrentTime() + StealthActions.SCHEDULE_DELAY_SECONDS;
-    }
-
     public int sendMessage(ArrayList<MessageObject> messages, final long peer, boolean forwardFromMyName, boolean hideCaption, boolean notify, int scheduleDate, long payStars) {
         return sendMessage(messages, peer, forwardFromMyName, hideCaption, notify, scheduleDate, null, -1, payStars);
     }
@@ -2093,7 +2069,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         boolean forwardFromMyName,
         boolean hideCaption,
         boolean notify,
-        int scheduleDateIn,
+        int scheduleDate,
         int scheduleRepeatPeriod,
         MessageObject replyToTopMsg,
         int video_timestamp,
@@ -2104,7 +2080,6 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
-        final int scheduleDate = getGhostScheduleDate(scheduleDateIn, peer, replyToTopMsg, false, payStars, false);
         int sendResult = 0;
         long myId = getUserConfig().getClientUserId();
         boolean isChannel = false;
@@ -4313,15 +4288,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         TLRPC.ReplyMarkup replyMarkup = sendMessageParams.replyMarkup;
         HashMap<String, String> params = sendMessageParams.params;
         boolean notify = sendMessageParams.notify;
-        int scheduleDate = getGhostScheduleDate(
-            sendMessageParams.scheduleDate,
-            sendMessageParams.peer,
-            sendMessageParams.replyToTopMsg,
-            sendMessageParams.quick_reply_shortcut != null || sendMessageParams.quick_reply_shortcut_id != 0
-                || sendMessageChatArguments.quickReplyShortcut != null || sendMessageChatArguments.quickReplyShortcutId != 0,
-            sendMessageParams.stars,
-            sendMessageParams.game != null || sendMessageParams.invoice != null
-        );
+        int scheduleDate = sendMessageParams.scheduleDate;
         int scheduleRepeatPeriod = sendMessageParams.scheduleRepeatPeriod;
         int ttl = sendMessageParams.ttl;
         Object parentObject = sendMessageParams.parentObject;
