@@ -754,6 +754,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private Long statusDrawableGiftId;
     private Drawable logoDrawable;
+    private Drawable ghostTitleDrawable;
+    private boolean ghostTitleShown;
     private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable statusDrawable;
     private AnimatedStatusView animatedStatusView;
     public RightSlidingDialogContainer rightSlidingDialogContainer;
@@ -3003,6 +3005,37 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private Drawable premiumStar;
 
+    /** "Telegram" logo title, followed by the Ghost Mode icon while Ghost Mode is on (and the icon is enabled). */
+    private CharSequence buildMainTitle() {
+        SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
+        ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        ghostTitleShown = SharedConfig.ghostShowStatusIcon && SharedConfig.isGhostModeActive();
+        if (ghostTitleShown) {
+            if (ghostTitleDrawable == null) {
+                ghostTitleDrawable = getContext().getResources().getDrawable(R.drawable.scout_ic_ghost_filled).mutate();
+                // left gap of 6dp, then a 20dp icon (ImageSpan width = bounds.right)
+                ghostTitleDrawable.setBounds(dp(6), dp(1), dp(26), dp(21));
+            }
+            ghostTitleDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
+            final int start = ssb.length();
+            ssb.append(" ");
+            ssb.setSpan(new ImageSpan(ghostTitleDrawable), start, start + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return ssb;
+    }
+
+    /** Re-reads the Ghost Mode settings and shows or hides the ghost icon next to the title logo. */
+    private void updateGhostTitle() {
+        if (actionBar == null || logoDrawable == null || statusDrawable == null || folderId != 0 || communityId != 0 || onlySelect) {
+            return;
+        }
+        if (ghostTitleShown == (SharedConfig.ghostShowStatusIcon && SharedConfig.isGhostModeActive())) {
+            return;
+        }
+        actionBar.setTitle(buildMainTitle(), statusDrawable);
+        updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
+    }
+
     public void updateStatus(TLRPC.User user, boolean animated) {
         if (dialogStoriesCell != null) {
             dialogStoriesCell.updateStatus(user, animated);
@@ -3514,9 +3547,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 logoDrawable = context.getResources().getDrawable(R.drawable.telegram_logo_2).mutate();
                 logoDrawable.setBounds(0, dp(2), logoDrawable.getIntrinsicWidth(), dp(2) + logoDrawable.getIntrinsicHeight());
                 logoDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
-                SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
-                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                actionBar.setTitle(ssb, statusDrawable);
+                actionBar.setTitle(buildMainTitle(), statusDrawable);
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
@@ -7017,6 +7048,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        updateGhostTitle();
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
         }
@@ -12107,6 +12139,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             if (logoDrawable != null) {
                 logoDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
+            }
+            if (ghostTitleDrawable != null) {
+                ghostTitleDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
             }
             if (actionModeCloseView != null) {
                 actionModeCloseView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.MULTIPLY));

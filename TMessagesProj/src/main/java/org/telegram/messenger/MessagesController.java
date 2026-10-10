@@ -10561,11 +10561,9 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                 }
             } else if (!ignoreSetOnline && SharedConfig.ghostHideOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
-                // Stealth mode: while idle in the app (not actively sending), keep reporting
-                // "offline" to the server instead of "online". Telegram's protocol still lets
-                // the server infer activity from other requests (e.g. sending a message), so this
-                // only covers what account.updateStatus itself controls — it can't fully suppress
-                // presence once you interact, that's a server-side restriction, not a client one.
+                // Hide Online Presence: while idle in the app, keep reporting "offline" to the server
+                // instead of "online". Requests that make the server mark us online on their own
+                // (sending, joining, editing ...) are answered with an immediate offline, see StealthActions.
                 if (statusSettingState != 2 && (lastStatusUpdateTime == 0 || !offlineSent || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000)) {
                     statusSettingState = 2;
 
@@ -10639,7 +10637,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     TLRPC.TL_messages_getMessagesViews req = new TLRPC.TL_messages_getMessagesViews();
                     req.peer = getInputPeer(key);
                     req.id = channelViewsToSend.valueAt(a);
-                    req.increment = a == 0;
+                    req.increment = a == 0 && !SharedConfig.ghostDontReadMessages;
                     getConnectionsManager().sendRequest(req, (response, error) -> {
                         if (response != null) {
                             TLRPC.TL_messages_messageViews res = (TLRPC.TL_messages_messageViews) response;
@@ -10871,12 +10869,26 @@ public class MessagesController extends BaseController implements NotificationCe
         checkTosUpdate();
     }
 
-    private final Runnable stealthOfflineRunnable = this::sendStealthOffline;
+    private static final long STEALTH_OFFLINE_DELAY_MS = 300;
+    private boolean stealthOfflineScheduled;
+    private final Runnable stealthOfflineRunnable = () -> {
+        stealthOfflineScheduled = false;
+        sendStealthOffline();
+    };
 
-    /** Debounced (an album produces several acks): sends "offline" ~300 ms after the last message was confirmed. */
+    /**
+     * Sends "offline" ~300 ms after a request that may have marked us online. Calls that arrive while one is
+     * already waiting are coalesced (so steady traffic can't postpone it forever); a call after it ran
+     * schedules a new one.
+     */
     public void scheduleStealthOffline() {
-        AndroidUtilities.cancelRunOnUIThread(stealthOfflineRunnable);
-        AndroidUtilities.runOnUIThread(stealthOfflineRunnable, 300);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (stealthOfflineScheduled) {
+                return;
+            }
+            stealthOfflineScheduled = true;
+            AndroidUtilities.runOnUIThread(stealthOfflineRunnable, STEALTH_OFFLINE_DELAY_MS);
+        });
     }
 
     private void sendStealthOffline() {
@@ -10902,7 +10914,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     /**
-     * Called right when the user flips the Stealth Mode toggle in Settings > Privacy and Security,
+     * Called right when Ghost Mode options change (Hide Online Presence / Don't Send Typing),
      * so the current presence gets corrected immediately instead of waiting for the next
      * updateTimerProc tick.
      */
@@ -10969,7 +10981,7 @@ public class MessagesController extends BaseController implements NotificationCe
             task.monoForumPeerId = isMonoForum(dialogId) ? threadId : 0;
             task.maxId = readMaxId;
             task.maxDate = getConnectionsManager().getCurrentTime();
-            completeReadTask(task);
+            completeReadTask(task, true);
         });
     }
 
@@ -14711,6 +14723,18 @@ public class MessagesController extends BaseController implements NotificationCe
         if (mid == 0 || ttl < 0) {
             return;
         }
+        if (SharedConfig.ghostDontReadMessages) {
+            // Ghost Mode: view-once / self-destruct media opened here must not be reported to the sender.
+            // Keep the local expiry so our own UI behaves normally; drop any queued server request.
+            if (taskId != 0) {
+                getMessagesStorage().removePendingTask(taskId);
+            }
+            if (createDeleteTask) {
+                int time = getConnectionsManager().getCurrentTime();
+                getMessagesStorage().createTaskForMid(dialogId, mid, time, time, ttl, false);
+            }
+            return;
+        }
         if (DialogObject.isChatDialog(dialogId) && inputChannel == null) {
             inputChannel = getInputChannel(dialogId);
             if (inputChannel == null) {
@@ -14789,6 +14813,17 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        completeReadTask(task, false);
+    }
+
+    /**
+     * The single place where a read is sent to the server. With Don't Read Messages on, nothing goes out
+     * unless force is set (Read on Interact), so no caller or already queued task can leak a read.
+     */
+    private void completeReadTask(ReadTask task, boolean force) {
+        if (!force && SharedConfig.ghostDontReadMessages) {
+            return;
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
