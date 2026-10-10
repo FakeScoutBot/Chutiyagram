@@ -295,7 +295,18 @@ public class SharedConfig {
     public static boolean inappCamera = true;
     public static boolean roundCamera16to9 = true;
     public static boolean noSoundHintShowed = false;
-    public static boolean stealthModeEnabled = false;
+    // Ghost Mode: every option can be switched on its own.
+    public static final int GHOST_DONT_READ_MESSAGES = 0;
+    public static final int GHOST_DONT_READ_STORIES = 1;
+    public static final int GHOST_HIDE_ONLINE = 2;
+    public static final int GHOST_DONT_SEND_TYPING = 3;
+    public static final int GHOST_OPTIONS_COUNT = 4;
+    public static boolean ghostDontReadMessages = false;
+    public static boolean ghostDontReadStories = false;
+    public static boolean ghostHideOnline = false;
+    public static boolean ghostDontSendTyping = false;
+    public static boolean ghostReadOnInteract = false;
+    public static boolean ghostShowStatusIcon = true;
     public static boolean forceAllowScreenshots = false;
     public static boolean voiceChangerEnabled = false;
     public static boolean keepDeletedMessages = false;
@@ -639,7 +650,14 @@ public class SharedConfig {
             sortContactsByName = preferences.getBoolean("sortContactsByName", false);
             sortFilesByName = preferences.getBoolean("sortFilesByName", false);
             noSoundHintShowed = preferences.getBoolean("noSoundHintShowed", false);
-            stealthModeEnabled = preferences.getBoolean("stealthModeEnabled", false);
+            // Old builds had a single all-or-nothing "stealthModeEnabled" flag; it seeds every option once.
+            final boolean legacyStealthMode = preferences.getBoolean("stealthModeEnabled", false);
+            ghostDontReadMessages = preferences.getBoolean("ghostDontReadMessages", legacyStealthMode);
+            ghostDontReadStories = preferences.getBoolean("ghostDontReadStories", legacyStealthMode);
+            ghostHideOnline = preferences.getBoolean("ghostHideOnline", legacyStealthMode);
+            ghostDontSendTyping = preferences.getBoolean("ghostDontSendTyping", legacyStealthMode);
+            ghostReadOnInteract = preferences.getBoolean("ghostReadOnInteract", false);
+            ghostShowStatusIcon = preferences.getBoolean("ghostShowStatusIcon", true);
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
             voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
             keepDeletedMessages = preferences.getBoolean("keepDeletedMessages", false);
@@ -1260,20 +1278,91 @@ public class SharedConfig {
         editor.apply();
     }
 
-    public static void setStealthModeEnabled(boolean value) {
-        if (stealthModeEnabled == value) {
-            return;
+    public static boolean getGhostOption(int option) {
+        switch (option) {
+            case GHOST_DONT_READ_MESSAGES: return ghostDontReadMessages;
+            case GHOST_DONT_READ_STORIES: return ghostDontReadStories;
+            case GHOST_HIDE_ONLINE: return ghostHideOnline;
+            case GHOST_DONT_SEND_TYPING: return ghostDontSendTyping;
         }
-        stealthModeEnabled = value;
-        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putBoolean("stealthModeEnabled", stealthModeEnabled);
-        editor.apply();
-        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (UserConfig.getInstance(a).isClientActivated()) {
-                MessagesController.getInstance(a).onStealthModeChanged();
+        return false;
+    }
+
+    /** How many of the four Ghost Mode options are currently on. */
+    public static int ghostOptionsEnabledCount() {
+        int count = 0;
+        for (int a = 0; a < GHOST_OPTIONS_COUNT; a++) {
+            if (getGhostOption(a)) {
+                count++;
             }
         }
+        return count;
+    }
+
+    public static boolean isGhostModeActive() {
+        return ghostOptionsEnabledCount() > 0;
+    }
+
+    public static void setGhostOption(int option, boolean value) {
+        setGhostOptions(option, value, false);
+    }
+
+    /** Master switch: turns every Ghost Mode option on or off at once. */
+    public static void setAllGhostOptions(boolean value) {
+        setGhostOptions(0, value, true);
+    }
+
+    private static void setGhostOptions(int option, boolean value, boolean all) {
+        final boolean oldHideOnline = ghostHideOnline;
+        final boolean oldDontType = ghostDontSendTyping;
+        SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings().edit();
+        for (int a = 0; a < GHOST_OPTIONS_COUNT; a++) {
+            if (!all && a != option) {
+                continue;
+            }
+            switch (a) {
+                case GHOST_DONT_READ_MESSAGES:
+                    ghostDontReadMessages = value;
+                    editor.putBoolean("ghostDontReadMessages", value);
+                    break;
+                case GHOST_DONT_READ_STORIES:
+                    ghostDontReadStories = value;
+                    editor.putBoolean("ghostDontReadStories", value);
+                    break;
+                case GHOST_HIDE_ONLINE:
+                    ghostHideOnline = value;
+                    editor.putBoolean("ghostHideOnline", value);
+                    break;
+                case GHOST_DONT_SEND_TYPING:
+                    ghostDontSendTyping = value;
+                    editor.putBoolean("ghostDontSendTyping", value);
+                    break;
+            }
+        }
+        editor.apply();
+        if (oldHideOnline != ghostHideOnline || oldDontType != ghostDontSendTyping) {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    MessagesController.getInstance(a).onStealthModeChanged();
+                }
+            }
+        }
+    }
+
+    public static void setGhostReadOnInteract(boolean value) {
+        if (ghostReadOnInteract == value) {
+            return;
+        }
+        ghostReadOnInteract = value;
+        MessagesController.getGlobalMainSettings().edit().putBoolean("ghostReadOnInteract", value).apply();
+    }
+
+    public static void setGhostShowStatusIcon(boolean value) {
+        if (ghostShowStatusIcon == value) {
+            return;
+        }
+        ghostShowStatusIcon = value;
+        MessagesController.getGlobalMainSettings().edit().putBoolean("ghostShowStatusIcon", value).apply();
     }
 
     public static void setForceAllowScreenshots(boolean value) {

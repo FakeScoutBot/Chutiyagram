@@ -3829,6 +3829,12 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             req.msg_id = messageObject.getId();
         }
         req.add_to_recent = addToRecent;
+        if (addedReaction != null) {
+            // Ghost Mode "Read on Interact": reacting counts as interacting with the chat.
+            final long interactDialogId = messageObject.getDialogId();
+            final long interactThreadId = getMessagesController().isForum(interactDialogId) ? MessageObject.getTopicId(currentAccount, messageObject.messageOwner, true) : 0;
+            getMessagesController().readDialogOnInteract(interactDialogId, interactThreadId, messageObject.getId());
+        }
         if (addToRecent && addedReaction != null) {
             MediaDataController.getInstance(currentAccount).recentReactions.add(0, ReactionsUtils.toTLReaction(addedReaction));
         }

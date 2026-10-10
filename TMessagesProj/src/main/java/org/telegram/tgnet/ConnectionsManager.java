@@ -406,7 +406,7 @@ public class ConnectionsManager extends BaseController {
                 startRequestTime = System.currentTimeMillis();
             }
             long finalStartRequestTime = startRequestTime;
-            final boolean stealthOfflineAfter = SharedConfig.stealthModeEnabled && StealthActions.marksUserOnline(object);
+            final boolean stealthOfflineAfter = SharedConfig.ghostHideOnline && StealthActions.marksUserOnline(object);
             listen(requestToken, (response, errorCode, errorText, networkType, timestamp, requestMsgId, dcId) -> {
                 if (stealthOfflineAfter) {
                     // The server just marked us online because of this request: go offline again immediately.

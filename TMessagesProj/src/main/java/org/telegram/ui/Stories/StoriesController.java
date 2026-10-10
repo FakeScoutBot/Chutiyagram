@@ -1297,8 +1297,8 @@ public class StoriesController {
                 storiesStorage.updateMaxReadId(dialogId, newReadId);
             }
             NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.storiesReadUpdated);
-            if (SharedConfig.stealthModeEnabled) {
-                // Stealth mode: keep our own local "read" state so the UI behaves normally,
+            if (SharedConfig.ghostDontReadStories) {
+                // Ghost Mode: keep our own local "read" state so the UI behaves normally,
                 // but never tell the server we've viewed the story — so we won't show up in
                 // the story owner's viewers list and their story stays "unseen" from our side.
                 return true;
@@ -3730,8 +3730,8 @@ public class StoriesController {
             if (seenStories.contains(storyId)) return false;
             seenStories.add(storyId);
             saveCache();
-            if (!SharedConfig.stealthModeEnabled) {
-                // Stealth mode: keep the local "seen" state, but never bump the server-side view counter.
+            if (!SharedConfig.ghostDontReadStories) {
+                // Ghost Mode: keep the local "seen" state, but never bump the server-side view counter.
                 TL_stories.TL_stories_incrementStoryViews req = new TL_stories.TL_stories_incrementStoryViews();
                 req.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
                 req.id.add(storyId);

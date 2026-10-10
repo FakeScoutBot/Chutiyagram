@@ -206,6 +206,8 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 getMessagesController().openByUserName(GROUP_USERNAME, this, 1);
                 break;
             case ID_GHOST_MODE:
+                presentFragment(new GhostModeActivity());
+                break;
             case ID_SPY:
             case ID_VOICE_CHANGER:
                 // Category screens come in the next step.

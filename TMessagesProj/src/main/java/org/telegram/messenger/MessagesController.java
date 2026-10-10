@@ -6399,7 +6399,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 uploadingWallpaperInfo.uploadingProgress = loadedSize / (float) totalSize;
             }
         } else if (id == NotificationCenter.messageReceivedByServer) {
-            if (SharedConfig.stealthModeEnabled) {
+            if (SharedConfig.ghostHideOnline) {
                 // The server marks us online when a message is sent; undo that right away.
                 scheduleStealthOffline();
             }
@@ -6410,6 +6410,13 @@ public class MessagesController extends BaseController implements NotificationCe
             Integer msgId = (Integer) args[0];
             Integer newMsgId = (Integer) args[1];
             Long did = (Long) args[3];
+            if (SharedConfig.ghostDontReadMessages && SharedConfig.ghostReadOnInteract && newMsgId != null && newMsgId > 0 && did != null) {
+                long interactThreadId = 0;
+                if (args[2] instanceof TLRPC.Message && isForum(did)) {
+                    interactThreadId = MessageObject.getTopicId(currentAccount, (TLRPC.Message) args[2], true);
+                }
+                readDialogOnInteract(did, interactThreadId, newMsgId);
+            }
             ArrayList<MessageObject> dialogMessages = dialogMessage.get(did);
             for (int i = 0; dialogMessages != null && i < dialogMessages.size(); ++i) {
                 MessageObject obj = dialogMessages.get(i);
@@ -10528,7 +10535,7 @@ public class MessagesController extends BaseController implements NotificationCe
         checkReadTasks();
 
         if (getUserConfig().isClientActivated()) {
-            if (!ignoreSetOnline && !SharedConfig.stealthModeEnabled && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
+            if (!ignoreSetOnline && !SharedConfig.ghostHideOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
                     if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
                         statusSettingState = 1;
@@ -10553,7 +10560,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         });
                     }
                 }
-            } else if (!ignoreSetOnline && SharedConfig.stealthModeEnabled && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
+            } else if (!ignoreSetOnline && SharedConfig.ghostHideOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 // Stealth mode: while idle in the app (not actively sending), keep reporting
                 // "offline" to the server instead of "online". Telegram's protocol still lets
                 // the server infer activity from other requests (e.g. sending a message), so this
@@ -10873,7 +10880,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void sendStealthOffline() {
-        if (!SharedConfig.stealthModeEnabled || !getUserConfig().isClientActivated()) {
+        if (!SharedConfig.ghostHideOnline || !getUserConfig().isClientActivated()) {
             return;
         }
         if (statusRequest != 0) {
@@ -10908,7 +10915,7 @@ public class MessagesController extends BaseController implements NotificationCe
             statusRequest = 0;
         }
         statusSettingState = 0;
-        if (SharedConfig.stealthModeEnabled) {
+        if (SharedConfig.ghostHideOnline) {
             if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 TL_account.updateStatus req = new TL_account.updateStatus();
                 req.offline = true;
@@ -10920,6 +10927,11 @@ public class MessagesController extends BaseController implements NotificationCe
                     statusRequest = 0;
                 });
             }
+        } else {
+            lastStatusUpdateTime = 0;
+            offlineSent = false;
+        }
+        if (SharedConfig.ghostDontSendTyping) {
             AndroidUtilities.runOnUIThread(() -> {
                 for (int a = 0; a < sendingTypings.length; a++) {
                     if (sendingTypings[a] != null) {
@@ -10927,10 +10939,38 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                 }
             });
-        } else {
-            lastStatusUpdateTime = 0;
-            offlineSent = false;
         }
+    }
+
+    /**
+     * Ghost Mode "Read on Interact": while "Don't Read Messages" is on, sending a message or a reaction
+     * is the one moment the chat is reported as read to the server. maxId is the id of the message that was
+     * just sent (or reacted to); the newest known message of the dialog is used when it is higher.
+     */
+    public void readDialogOnInteract(long dialogId, long threadId, int maxId) {
+        if (!SharedConfig.ghostDontReadMessages || !SharedConfig.ghostReadOnInteract) {
+            return;
+        }
+        if (dialogId == 0 || DialogObject.isEncryptedDialog(dialogId) || !getUserConfig().isClientActivated()) {
+            return;
+        }
+        final TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+        if (dialog != null && dialog.top_message > maxId) {
+            maxId = dialog.top_message;
+        }
+        if (maxId <= 0) {
+            return;
+        }
+        final int readMaxId = maxId;
+        Utilities.stageQueue.postRunnable(() -> {
+            final ReadTask task = new ReadTask();
+            task.dialogId = dialogId;
+            task.replyId = threadId;
+            task.monoForumPeerId = isMonoForum(dialogId) ? threadId : 0;
+            task.maxId = readMaxId;
+            task.maxDate = getConnectionsManager().getCurrentTime();
+            completeReadTask(task);
+        });
     }
 
     private void checkTosUpdate() {
@@ -11488,8 +11528,8 @@ public class MessagesController extends BaseController implements NotificationCe
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
             return false;
         }
-        if (SharedConfig.stealthModeEnabled) {
-            // Stealth mode: never tell the server we're typing.
+        if (SharedConfig.ghostDontSendTyping) {
+            // Ghost Mode: never tell the server we're typing / recording / uploading.
             return false;
         }
         final long selfId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
@@ -14585,8 +14625,8 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
-        if (SharedConfig.stealthModeEnabled) {
-            // Stealth mode: keep the local "read" state for our own UI, but never tell the
+        if (SharedConfig.ghostDontReadMessages) {
+            // Ghost Mode: keep the local "read" state for our own UI, but never tell the
             // server the content was read — so the sender still sees it as unread.
             return;
         }
@@ -14618,7 +14658,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markMentionMessageAsRead(int mid, long channelId, long did) {
         getMessagesStorage().markMentionMessageAsRead(-channelId, mid, did);
-        if (SharedConfig.stealthModeEnabled) {
+        if (SharedConfig.ghostDontReadMessages) {
             return;
         }
         if (channelId != 0) {
@@ -14731,8 +14771,8 @@ public class MessagesController extends BaseController implements NotificationCe
         if (!DialogObject.isEncryptedDialog(dialogId)) {
             return;
         }
-        if (SharedConfig.stealthModeEnabled) {
-            // Stealth mode: don't tell the secret chat peer that we've read the message either.
+        if (SharedConfig.ghostDontReadMessages) {
+            // Ghost Mode: don't tell the secret chat peer that we've read the message either.
             return;
         }
         TLRPC.EncryptedChat chat = getEncryptedChat(DialogObject.getEncryptedChatId(dialogId));
@@ -14987,8 +15027,8 @@ public class MessagesController extends BaseController implements NotificationCe
             monoForumPeerId = 0;
         }
 
-        if (createReadTask && SharedConfig.stealthModeEnabled) {
-            // Stealth mode: local unread counters are already updated above for our own UI,
+        if (createReadTask && SharedConfig.ghostDontReadMessages) {
+            // Ghost Mode: local unread counters are already updated above for our own UI,
             // but we deliberately never queue or send messages.readHistory (etc.) to the server,
             // so the dialog stays "unread" from the other side's point of view.
             createReadTask = false;
@@ -20263,7 +20303,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         dbUsersStatus.add(toDbUser);
                         if (update.user_id == getUserConfig().getClientUserId()) {
                             getNotificationsController().setLastOnlineFromOtherDevice(update.status.expires);
-                            if (SharedConfig.stealthModeEnabled && update.status instanceof TLRPC.TL_userStatusOnline) {
+                            if (SharedConfig.ghostHideOnline && update.status instanceof TLRPC.TL_userStatusOnline) {
                                 // Catch-all: whatever made the server mark us online, undo it right away.
                                 scheduleStealthOffline();
                             }
