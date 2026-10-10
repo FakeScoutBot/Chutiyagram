@@ -26,6 +26,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.INavigationLayout;
@@ -48,6 +49,8 @@ public class ThemePreviewMessagesCell extends LinearLayout {
     public final static int TYPE_REACTIONS_DOUBLE_TAP = 2;
     public final static int TYPE_PEER_COLOR = 3;
     public final static int TYPE_GROUP_PEER_COLOR = 4;
+    /** One incoming message of the current user, marked as a kept deleted message (Spy > Customization). */
+    public final static int TYPE_DELETED_MESSAGE = 5;
 
     private final Runnable invalidateRunnable = this::invalidate;
 
@@ -158,6 +161,29 @@ public class ThemePreviewMessagesCell extends LinearLayout {
             message1 = new MessageObject(UserConfig.selectedAccount, message, true, false);
             message1.notime = true;
             message1.forceAvatar = true;
+            message1.resetLayout();
+            message1.eventId = 1;
+        } else if (type == TYPE_DELETED_MESSAGE) {
+            final TLRPC.User currentUser = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
+            TLRPC.Message message = new TLRPC.TL_message();
+            message.message = LocaleController.getString(R.string.DeletedMessagePreview);
+            message.date = (int) (System.currentTimeMillis() / 1000) - 120;
+            message.dialog_id = 1;
+            message.flags = 259;
+            message.from_id = new TLRPC.TL_peerUser();
+            message.from_id.user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+            message.id = 1;
+            message.media = new TLRPC.TL_messageMediaEmpty();
+            message.out = false;
+            message.peer_id = new TLRPC.TL_peerUser();
+            message.peer_id.user_id = 0;
+
+            message1 = new MessageObject(UserConfig.selectedAccount, message, true, false);
+            message1.deletedLocally = true;
+            message1.forceAvatar = true;
+            if (currentUser != null) {
+                message1.customName = UserObject.getUserName(currentUser);
+            }
             message1.resetLayout();
             message1.eventId = 1;
         } else if (type == TYPE_REACTIONS_DOUBLE_TAP)  {
@@ -426,7 +452,7 @@ public class ThemePreviewMessagesCell extends LinearLayout {
                     return type == progress;
                 }
             });
-            cells[a].isChat = type == TYPE_REACTIONS_DOUBLE_TAP || type == TYPE_GROUP_PEER_COLOR;
+            cells[a].isChat = type == TYPE_REACTIONS_DOUBLE_TAP || type == TYPE_GROUP_PEER_COLOR || type == TYPE_DELETED_MESSAGE;
             cells[a].setFullyDraw(true);
             MessageObject messageObject = a == 0 ? message2 : message1;
             if (messageObject == null) {
@@ -439,6 +465,15 @@ public class ThemePreviewMessagesCell extends LinearLayout {
 
     public ChatMessageCell[] getCells() {
         return cells;
+    }
+
+    /** Re-applies the saved deleted-message look (translucency, mark color) to the preview bubble. */
+    public void updateDeletedStyle() {
+        for (int a = 0; a < cells.length; a++) {
+            if (cells[a] != null && cells[a].getMessageObject() != null) {
+                cells[a].updateDeletedStyle();
+            }
+        }
     }
 
     @Override
@@ -555,8 +590,10 @@ public class ThemePreviewMessagesCell extends LinearLayout {
                 invalidate();
             }
         }
-        shadowDrawable.setBounds(0, 0, getMeasuredWidth(), getMeasuredHeight());
-        shadowDrawable.draw(canvas);
+        if (type != TYPE_DELETED_MESSAGE) {
+            shadowDrawable.setBounds(0, 0, getMeasuredWidth(), getMeasuredHeight());
+            shadowDrawable.draw(canvas);
+        }
     }
 
     private boolean allowLoadingOnTouch() {

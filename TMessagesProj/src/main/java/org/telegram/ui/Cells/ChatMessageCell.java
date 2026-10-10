@@ -6897,7 +6897,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             currentMessageObject = messageObject;
             currentMessagesGroup = groupedMessages;
-            updateDeletedAlpha(wasDeletedLocally);
+            updateDeletedAlpha(wasDeletedLocally && SharedConfig.deletedMessagesTranslucent);
             wasAllChats = isAllChats;
             lastTime = -2;
             lastPostAuthor = messageObject.messageOwner.post_author;
@@ -24774,7 +24774,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             deletedIconPaint.setStrokeCap(Paint.Cap.ROUND);
             deletedIconPaint.setStrokeJoin(Paint.Join.ROUND);
         }
-        final int color = Theme.chat_timePaint.getColor();
+        // Spy > Customization: a chosen mark color wins, otherwise the mark follows the time color.
+        final int color = SharedConfig.deletedMarkColor != 0 ? SharedConfig.deletedMarkColor : Theme.chat_timePaint.getColor();
         deletedIconPaint.setColor(color);
         deletedIconPaint.setAlpha((int) (Color.alpha(color) * progress));
         final float box = Theme.chat_timePaint.getTextSize() + dp(1);
@@ -24802,6 +24803,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         p.moveTo(left + 0.58f * s, t + 0.42f * s);
         p.lineTo(left + 0.58f * s, t + 0.76f * s);
         canvas.drawPath(p, deletedIconPaint);
+    }
+
+    /** Re-applies the Spy > Customization look (translucency, mark color) to an already bound cell. */
+    public void updateDeletedStyle() {
+        final boolean deleted = currentMessageObject != null && currentMessageObject.deletedLocally;
+        updateDeletedAlpha(deleted && SharedConfig.deletedMessagesTranslucent);
+        invalidate();
     }
 
     // Greys the whole message out. Goes through setAlpha(), so the list, the item animator and the
