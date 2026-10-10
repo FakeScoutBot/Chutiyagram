@@ -49,6 +49,7 @@ public class SpyPreferencesActivity extends BaseFragment {
     private static final int ID_KEEP_DELETED = 1;
     private static final int ID_TRANSLUCENT = 2;
     private static final int ID_CLEAR_DELETED = 3;
+    private static final int ID_FORCE_SCREENSHOTS = 4;
 
     /** Swatches of the deleted mark color picker. 0 means "follow the message time color". */
     private static final int[] MARK_COLORS = {
@@ -104,8 +105,10 @@ public class SpyPreferencesActivity extends BaseFragment {
     }
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        items.add(UItem.asHeader("Spy essentials"));
         items.add(UItem.asCheck(ID_KEEP_DELETED, "Keep Deleted Messages").setChecked(SharedConfig.keepDeletedMessages));
-        items.add(UItem.asShadow("Messages that other people delete stay in your chats, in the same place. Secret chats, service messages and self-destructing messages are never kept. Messages you delete yourself are removed as usual."));
+        items.add(UItem.asCheck(ID_FORCE_SCREENSHOTS, "Force Allow Screenshots").setChecked(SharedConfig.forceAllowScreenshots));
+        items.add(UItem.asShadow("Keeps messages deleted by others in your chats. Secret chats, service messages and self-destructing messages are excluded."));
 
         items.add(UItem.asHeader("Customization"));
         items.add(UItem.asCustom(previewContainer, LayoutHelper.WRAP_CONTENT));
@@ -121,6 +124,9 @@ public class SpyPreferencesActivity extends BaseFragment {
     private void onItemClick(UItem item, View view, int position, float x, float y) {
         if (item.id == ID_KEEP_DELETED) {
             SharedConfig.setKeepDeletedMessages(!SharedConfig.keepDeletedMessages);
+            listView.adapter.update(true);
+        } else if (item.id == ID_FORCE_SCREENSHOTS) {
+            SharedConfig.setForceAllowScreenshots(!SharedConfig.forceAllowScreenshots);
             listView.adapter.update(true);
         } else if (item.id == ID_TRANSLUCENT) {
             SharedConfig.setDeletedMessagesTranslucent(!SharedConfig.deletedMessagesTranslucent);
