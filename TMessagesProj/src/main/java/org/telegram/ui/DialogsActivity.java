@@ -3013,8 +3013,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (ghostTitleShown) {
             if (ghostTitleDrawable == null) {
                 ghostTitleDrawable = getContext().getResources().getDrawable(R.drawable.scout_ic_ghost_filled).mutate();
-                // left gap of 6dp, then a 20dp icon (ImageSpan width = bounds.right)
-                ghostTitleDrawable.setBounds(dp(6), dp(1), dp(26), dp(21));
+
+                final int ghostSize = dp(24);
+                final int ghostBottom = logoDrawable.getBounds().bottom;
+                final int ghostLeft = (int) dpf2(3.5f); // ImageSpan width = bounds.right
+                ghostTitleDrawable.setBounds(ghostLeft, ghostBottom - ghostSize, ghostLeft + ghostSize, ghostBottom);
             }
             ghostTitleDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
             final int start = ssb.length();
