@@ -659,7 +659,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(4, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_scout, "ScoutGram Preferences"));
+        items.add(SettingCell.Factory.of(4, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_scout, "ScoutGram Preferences"));
         items.add(UItem.asShadow(null));
 
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
