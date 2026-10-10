@@ -61,6 +61,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
@@ -160,6 +161,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
     ActionBarAnimatedSubtitleOverlayContainer subtitleOverlayContainer;
     ImageView telegramLogoView;
     ImageView emojiStatusView;
+    ImageView ghostStatusView;
+    private boolean ghostStatusShown;
     AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable statusDrawable;
     boolean drawCircleForce;
     ArrayList<Runnable> afterNextLayout = new ArrayList<>();
@@ -349,6 +352,15 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         emojiStatusView.setScaleType(ImageView.ScaleType.CENTER);
         emojiStatusView.setImageDrawable(statusDrawable);
         addView(emojiStatusView, LayoutHelper.createFrame(40, 40));
+
+        // Ghost Mode status icon, shown right after the logo while Ghost Mode is on.
+        ghostStatusView = new ImageView(context);
+        ghostStatusView.setScaleType(ImageView.ScaleType.CENTER);
+        ghostStatusView.setImageResource(R.drawable.scout_ic_ghost_filled);
+        ghostStatusView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
+        ghostStatusView.setContentDescription("Ghost Mode");
+        addView(ghostStatusView, LayoutHelper.createFrame(40, 40));
+        ghostStatusShown = shouldShowGhostStatus();
 
         subtitleOverlayContainer = new ActionBarAnimatedSubtitleOverlayContainer(context, null, ellipsizeSpanAnimator) {
             @Override
@@ -944,7 +956,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
             telegramLogoView.setTranslationY(bottomY + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
 
-            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
+            final float ghostShift = ghostStatusShown ? dp(24) : 0;
+            ghostStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
+            ghostStatusView.setTranslationY(bottomY + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
+
+            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth() + ghostShift);
             emojiStatusView.setTranslationY(bottomY + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
 
             subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
@@ -1157,6 +1173,9 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             subtitleOverlayContainer.updateColors();
         }
         telegramLogoView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
+        if (ghostStatusView != null) {
+            ghostStatusView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
+        }
         AndroidUtilities.forEachViews(recyclerListView, view -> {
             StoryCell cell = (StoryCell) view;
             cell.invalidate();
@@ -1329,7 +1348,23 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         fragment.getOrCreateStoryViewer().open(getContext(), null, peerIds, 0, null, null, StoriesListPlaceProvider.of(listViewMini), false);
     }
 
+    private boolean shouldShowGhostStatus() {
+        return SharedConfig.ghostShowStatusIcon && SharedConfig.isGhostModeActive();
+    }
+
+    /** Re-reads Ghost Mode settings and shows or hides the ghost icon next to the logo. */
+    public void updateGhostStatus() {
+        final boolean show = shouldShowGhostStatus();
+        if (ghostStatusShown == show) {
+            return;
+        }
+        ghostStatusShown = show;
+        checkUi_titleVisibility();
+        invalidate();
+    }
+
     public void onResume() {
+        updateGhostStatus();
         storiesController.checkExpiredStories();
         for (int i = 0; i < items.size(); i++) {
             TL_stories.PeerStories stories = storiesController.getStories(items.get(i).dialogId);
@@ -2223,6 +2258,10 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         if (emojiStatusView != null) {
             emojiStatusView.setAlpha(logoAlpha);
             emojiStatusView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+        }
+        if (ghostStatusView != null) {
+            ghostStatusView.setAlpha(logoAlpha);
+            ghostStatusView.setVisibility(ghostStatusShown && logoAlpha > 0 ? VISIBLE : GONE);
         }
         if (subtitleOverlayContainer != null) {
             subtitleOverlayContainer.setAlpha(progress);
