@@ -664,7 +664,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(4, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_scout, "ScoutGram Preferences"));
+        items.add(SettingCell.Factory.of(4, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_scout, "ScoutGram Preferences"));
         items.add(UItem.asShadow(null));
 
         final boolean walletAbove = getConnectionsManager().getCurrentTime() - 1791538462 < 4 * 7 * 24 * 60 * 60;

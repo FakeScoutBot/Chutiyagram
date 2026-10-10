@@ -126,21 +126,18 @@ public class ScoutPreferenceActivity extends BaseFragment {
     private void buildHeader(Context context) {
         headerView = new FrameLayout(context);
 
-        // Logo: gradient disc with the Scout mark.
+        // Logo: red disc with the Scout paper plane.
         logoView = new FrameLayout(context);
-        final GradientDrawable disc = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF35B4F5, 0xFF2B6FE6, 0xFF5B47D6}
-        );
+        final GradientDrawable disc = new GradientDrawable();
         disc.setShape(GradientDrawable.OVAL);
-        disc.setStroke(dp(2), 0x26FFFFFF);
+        disc.setColor(0xFFEA2529);
         logoView.setBackground(disc);
         logoView.setElevation(dp(2));
 
         final ImageView mark = new ImageView(context);
         mark.setScaleType(ImageView.ScaleType.FIT_CENTER);
         mark.setImageResource(R.drawable.settings_scout);
-        logoView.addView(mark, LayoutHelper.createFrame(44, 44, Gravity.CENTER));
+        logoView.addView(mark, LayoutHelper.createFrame(56, 56, Gravity.CENTER));
         headerView.addView(logoView, LayoutHelper.createFrame(84, 84, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 16, 0, 0));
 
         titleView = new TextView(context);
