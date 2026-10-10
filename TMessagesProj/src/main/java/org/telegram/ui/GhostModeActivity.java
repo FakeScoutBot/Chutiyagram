@@ -27,11 +27,12 @@ public class GhostModeActivity extends BaseFragment {
     private static final int ID_OPTION_BASE = 10; // + SharedConfig.GHOST_* option index
     private static final int ID_READ_ON_INTERACT = 30;
     private static final int ID_SHOW_STATUS_ICON = 31;
+    private static final int ID_SCHEDULE_MESSAGES = 32;
 
     private static final String[] OPTION_TITLES = {
         "Don't Read Messages",
         "Don't Read Stories",
-        "Hide Online Presence",
+        "Don't Send Online",
         "Don't Send Typing"
     };
 
@@ -91,6 +92,9 @@ public class GhostModeActivity extends BaseFragment {
         items.add(UItem.asCheck(ID_READ_ON_INTERACT, "Read on Interact").setChecked(SharedConfig.ghostReadOnInteract));
         items.add(UItem.asShadow("While \"Don't Read Messages\" is on, sending a message or reacting to one marks that chat as read."));
 
+        items.add(UItem.asCheck(ID_SCHEDULE_MESSAGES, "Schedule Messages").setChecked(SharedConfig.ghostScheduleMessages));
+        items.add(UItem.asShadow("Sends outgoing messages through Telegram's schedule queue, so they go out ~12 seconds later and you don't appear online. Chats where Telegram doesn't allow scheduling (secret chats, Saved Messages) send normally. Turns off Read on Interact."));
+
         items.add(UItem.asCheck(ID_SHOW_STATUS_ICON, "Display Ghost Mode Status").setChecked(SharedConfig.ghostShowStatusIcon));
         items.add(UItem.asShadow("Shows a ghost icon next to the logo on the chats screen while Ghost Mode is on."));
     }
@@ -105,6 +109,9 @@ public class GhostModeActivity extends BaseFragment {
             listView.adapter.update(true);
         } else if (item.id == ID_READ_ON_INTERACT) {
             SharedConfig.setGhostReadOnInteract(!SharedConfig.ghostReadOnInteract);
+            listView.adapter.update(true);
+        } else if (item.id == ID_SCHEDULE_MESSAGES) {
+            SharedConfig.setGhostScheduleMessages(!SharedConfig.ghostScheduleMessages);
             listView.adapter.update(true);
         } else if (item.id == ID_SHOW_STATUS_ICON) {
             SharedConfig.setGhostShowStatusIcon(!SharedConfig.ghostShowStatusIcon);
