@@ -1540,10 +1540,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean wasDeletedLocally;
     private boolean deletedAlphaApplied;
     private static final float DELETED_MESSAGE_ALPHA = 0.6f;
-    private Drawable deletedIconDrawable;
-    private int deletedIconRes;
-    private int deletedIconColor;
-    private int lastDeletedStyleVersion;
+    private Paint deletedIconPaint;
+    private final Path deletedIconPath = new Path();
     public boolean isReportChat;
     public long linkedChatId;
     public boolean isRepliesChat;
@@ -6795,7 +6793,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 lastPostAuthor != messageObject.messageOwner.post_author ||
                 wasPinned != isPinned ||
                 wasDeletedLocally != messageObject.deletedLocally ||
-                lastDeletedStyleVersion != SharedConfig.deletedStyleVersion ||
                 newReply != lastReplyMessage ||
                 messageObject.translated != lastTranslated;
         boolean groupChanged = groupedMessages != currentMessagesGroup;
@@ -6891,7 +6888,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             wasPinned = isPinned;
             wasDeletedLocally = messageObject.deletedLocally;
-            lastDeletedStyleVersion = SharedConfig.deletedStyleVersion;
             pinnedBottom = bottomNear;
             this.firstInChat = firstInChat;
             this.lastInChatList = lastInChatList;
@@ -6901,7 +6897,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             currentMessageObject = messageObject;
             currentMessagesGroup = groupedMessages;
-            updateDeletedAlpha(wasDeletedLocally && SharedConfig.deletedTranslucent);
+            updateDeletedAlpha(wasDeletedLocally);
             wasAllChats = isAllChats;
             lastTime = -2;
             lastPostAuthor = messageObject.messageOwner.post_author;
@@ -24772,24 +24768,40 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     // A small trash can drawn with the color of the time text, so it follows the bubble, media and sticker styles.
     private void drawDeletedIcon(Canvas canvas, float x, float top, float progress) {
-        final int res = SharedConfig.getDeletedMarkIconRes();
-        if (deletedIconDrawable == null || deletedIconRes != res) {
-            deletedIconRes = res;
-            deletedIconDrawable = androidx.core.content.ContextCompat.getDrawable(getContext(), res).mutate();
-            deletedIconColor = 0;
+        if (deletedIconPaint == null) {
+            deletedIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            deletedIconPaint.setStyle(Paint.Style.STROKE);
+            deletedIconPaint.setStrokeCap(Paint.Cap.ROUND);
+            deletedIconPaint.setStrokeJoin(Paint.Join.ROUND);
         }
-        final int color = SharedConfig.deletedMarkColor != 0 ? SharedConfig.deletedMarkColor : Theme.chat_timePaint.getColor();
-        if (deletedIconColor != color) {
-            deletedIconColor = color;
-            deletedIconDrawable.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN);
-        }
-        deletedIconDrawable.setAlpha((int) (255 * progress));
+        final int color = Theme.chat_timePaint.getColor();
+        deletedIconPaint.setColor(color);
+        deletedIconPaint.setAlpha((int) (Color.alpha(color) * progress));
         final float box = Theme.chat_timePaint.getTextSize() + dp(1);
         final float s = Theme.chat_timePaint.getTextSize() * 0.95f;
         final float left = x + (box - s) / 2f;
         final float t = top + (box - s) / 2f + dp(0.5f);
-        deletedIconDrawable.setBounds((int) left, (int) t, (int) (left + s), (int) (t + s));
-        deletedIconDrawable.draw(canvas);
+        deletedIconPaint.setStrokeWidth(Math.max(dp(1f), s * 0.085f));
+        Path p = deletedIconPath;
+        p.reset();
+        // lid and handle
+        p.moveTo(left + 0.10f * s, t + 0.24f * s);
+        p.lineTo(left + 0.90f * s, t + 0.24f * s);
+        p.moveTo(left + 0.36f * s, t + 0.24f * s);
+        p.lineTo(left + 0.36f * s, t + 0.10f * s);
+        p.lineTo(left + 0.64f * s, t + 0.10f * s);
+        p.lineTo(left + 0.64f * s, t + 0.24f * s);
+        // body
+        p.moveTo(left + 0.20f * s, t + 0.24f * s);
+        p.lineTo(left + 0.26f * s, t + 0.92f * s);
+        p.lineTo(left + 0.74f * s, t + 0.92f * s);
+        p.lineTo(left + 0.80f * s, t + 0.24f * s);
+        // ribs
+        p.moveTo(left + 0.42f * s, t + 0.42f * s);
+        p.lineTo(left + 0.42f * s, t + 0.76f * s);
+        p.moveTo(left + 0.58f * s, t + 0.42f * s);
+        p.lineTo(left + 0.58f * s, t + 0.76f * s);
+        canvas.drawPath(p, deletedIconPaint);
     }
 
     // Greys the whole message out. Goes through setAlpha(), so the list, the item animator and the

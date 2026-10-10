@@ -575,7 +575,6 @@ public class ChatActivity extends BaseFragment implements
     private ChatMessageCell pollHintCell;
     private int pollHintX;
     private int pollHintY;
-    private int appliedDeletedStyleVersion = SharedConfig.deletedStyleVersion;
     private HintView voiceHintTextView;
     private HintView noSoundHintView;
     private HintView forwardHintView;
@@ -29809,12 +29808,6 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onResume() {
         super.onResume();
-        if (appliedDeletedStyleVersion != SharedConfig.deletedStyleVersion) {
-            appliedDeletedStyleVersion = SharedConfig.deletedStyleVersion;
-            if (chatAdapter != null) {
-                chatAdapter.notifyDataSetChanged(false);
-            }
-        }
         checkShowBlur(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
