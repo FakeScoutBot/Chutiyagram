@@ -212,7 +212,7 @@ public class ScoutPreferenceActivity extends BaseFragment {
                 presentFragment(new SpyPreferencesActivity());
                 break;
             case ID_VOICE_CHANGER:
-                // Category screens come in the next step.
+                presentFragment(new VoiceChangerActivity());
                 break;
         }
     }
