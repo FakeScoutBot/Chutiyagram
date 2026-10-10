@@ -31,7 +31,7 @@ public class GhostModeActivity extends BaseFragment {
     private static final String[] OPTION_TITLES = {
         "Don't Read Messages",
         "Don't Read Stories",
-        "Hide Online Presence",
+        "Don't Send Online",
         "Don't Send Typing"
     };
 
