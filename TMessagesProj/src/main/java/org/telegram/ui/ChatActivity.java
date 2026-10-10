@@ -29809,6 +29809,15 @@ public class ChatActivity extends BaseFragment implements
     public void onResume() {
         super.onResume();
         checkShowBlur(false);
+        if (chatListView != null) {
+            // Spy > Customization may have changed how kept deleted messages look.
+            for (int a = 0, N = chatListView.getChildCount(); a < N; a++) {
+                final View child = chatListView.getChildAt(a);
+                if (child instanceof ChatMessageCell) {
+                    ((ChatMessageCell) child).updateDeletedStyle();
+                }
+            }
+        }
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
             ImportingAlert alert = new ImportingAlert(getParentActivity(), null, this, themeDelegate);

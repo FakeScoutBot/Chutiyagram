@@ -1593,6 +1593,7 @@
     <string name="MessageDetails">Details</string>
     <string name="MessageDetailsSent">Sent</string>
     <string name="MessageDetailsDeleted">Deleted</string>
+    <string name="DeletedMessagePreview">do they really have to keep changing the UI every update..?</string>
     <string name="MessageDetailsId">Message ID</string>
     <string name="MessageDetailsFileId">File ID</string>
     <string name="MessageDetailsUniqueId">File unique ID</string>

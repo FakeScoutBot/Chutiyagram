@@ -310,6 +310,12 @@ public class SharedConfig {
     public static boolean forceAllowScreenshots = false;
     public static boolean voiceChangerEnabled = false;
     public static boolean keepDeletedMessages = false;
+    // Look of messages that were deleted by someone else but are kept (Spy > Customization).
+    public static final int DELETED_MARK_TRASH = 0;
+    public static boolean deletedMessagesTranslucent = true;
+    public static int deletedMarkStyle = DELETED_MARK_TRASH;
+    /** ARGB color of the deleted mark; 0 follows the message time color. */
+    public static int deletedMarkColor = 0;
     public static int voiceChangerSemitones = VoiceChanger.DEFAULT_SEMITONES;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
@@ -661,6 +667,9 @@ public class SharedConfig {
             forceAllowScreenshots = preferences.getBoolean("forceAllowScreenshots", false);
             voiceChangerEnabled = preferences.getBoolean("voiceChangerEnabled", false);
             keepDeletedMessages = preferences.getBoolean("keepDeletedMessages", false);
+            deletedMessagesTranslucent = preferences.getBoolean("deletedMessagesTranslucent", true);
+            deletedMarkStyle = preferences.getInt("deletedMarkStyle", DELETED_MARK_TRASH);
+            deletedMarkColor = preferences.getInt("deletedMarkColor", 0);
             voiceChangerSemitones = VoiceChanger.clamp(preferences.getInt("voiceChangerSemitones", VoiceChanger.DEFAULT_SEMITONES));
             directShareHash = preferences.getString("directShareHash2", null);
             useThreeLinesLayout = preferences.getBoolean("useThreeLinesLayout", false);
@@ -1384,6 +1393,30 @@ public class SharedConfig {
         keepDeletedMessages = value;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         preferences.edit().putBoolean("keepDeletedMessages", keepDeletedMessages).apply();
+    }
+
+    public static void setDeletedMessagesTranslucent(boolean value) {
+        if (deletedMessagesTranslucent == value) {
+            return;
+        }
+        deletedMessagesTranslucent = value;
+        MessagesController.getGlobalMainSettings().edit().putBoolean("deletedMessagesTranslucent", value).apply();
+    }
+
+    public static void setDeletedMarkStyle(int value) {
+        if (deletedMarkStyle == value) {
+            return;
+        }
+        deletedMarkStyle = value;
+        MessagesController.getGlobalMainSettings().edit().putInt("deletedMarkStyle", value).apply();
+    }
+
+    public static void setDeletedMarkColor(int value) {
+        if (deletedMarkColor == value) {
+            return;
+        }
+        deletedMarkColor = value;
+        MessagesController.getGlobalMainSettings().edit().putInt("deletedMarkColor", value).apply();
     }
 
     public static void setVoiceChangerEnabled(boolean value) {
