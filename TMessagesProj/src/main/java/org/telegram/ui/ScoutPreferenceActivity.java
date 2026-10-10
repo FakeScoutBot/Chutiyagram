@@ -40,7 +40,7 @@ import java.util.ArrayList;
  */
 public class ScoutPreferenceActivity extends BaseFragment {
 
-    private static final String CHANNEL_USERNAME = "scoutgramb";
+    private static final String CHANNEL_USERNAME = "scoutgram";
     private static final String GROUP_USERNAME = "scoutgramchat";
 
     private static final int ID_GHOST_MODE = 1;
