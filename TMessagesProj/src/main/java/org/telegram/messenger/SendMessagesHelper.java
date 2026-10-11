@@ -3991,7 +3991,6 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             // Ghost Mode "Read on Interact": reacting counts as interacting with the chat.
             final long interactDialogId = messageObject.getDialogId();
             final long interactThreadId = getMessagesController().isForum(interactDialogId) ? MessageObject.getTopicId(currentAccount, messageObject.messageOwner, true) : 0;
-            FileLog.d("[GhostROI] reaction interact dialog=" + interactDialogId + " thread=" + interactThreadId + " msgId=" + messageObject.getId());
             getMessagesController().readDialogOnInteract(interactDialogId, interactThreadId, messageObject.getId());
         }
         if (addToRecent && addedReaction != null) {
