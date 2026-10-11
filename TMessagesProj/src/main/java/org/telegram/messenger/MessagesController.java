@@ -6393,6 +6393,9 @@ public class MessagesController extends BaseController implements NotificationCe
             Integer msgId = (Integer) args[0];
             Integer newMsgId = (Integer) args[1];
             Long did = (Long) args[3];
+            if (SharedConfig.ghostDontReadMessages) {
+                FileLog.d("[GhostROI] messageReceivedByServer did=" + did + " msgId=" + msgId + " newMsgId=" + newMsgId + " scheduled=" + scheduled + " readOnInteract=" + SharedConfig.ghostReadOnInteract + " isForum=" + (did != null && isForum(did)));
+            }
             if (SharedConfig.ghostDontReadMessages && SharedConfig.ghostReadOnInteract && newMsgId != null && newMsgId > 0 && did != null) {
                 long interactThreadId = 0;
                 if (args[2] instanceof TLRPC.Message && isForum(did)) {
@@ -10944,20 +10947,27 @@ public class MessagesController extends BaseController implements NotificationCe
      * just sent (or reacted to); the newest known message of the dialog is used when it is higher.
      */
     public void readDialogOnInteract(long dialogId, long threadId, int maxId) {
+        FileLog.d("[GhostROI] readDialogOnInteract dialog=" + dialogId + " thread=" + threadId + " maxId=" + maxId + " dontRead=" + SharedConfig.ghostDontReadMessages + " readOnInteract=" + SharedConfig.ghostReadOnInteract);
         if (!SharedConfig.ghostDontReadMessages || !SharedConfig.ghostReadOnInteract) {
+            FileLog.d("[GhostROI] readDialogOnInteract skipped: option is off");
             return;
         }
         if (dialogId == 0 || DialogObject.isEncryptedDialog(dialogId) || !getUserConfig().isClientActivated()) {
+            FileLog.d("[GhostROI] readDialogOnInteract skipped: dialogId=0 / encrypted / not activated (encrypted=" + DialogObject.isEncryptedDialog(dialogId) + ")");
             return;
         }
         final TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+        final TLRPC.InputPeer logInputPeer = getInputPeer(dialogId);
+        FileLog.d("[GhostROI] readDialogOnInteract dialogPresent=" + (dialog != null) + " topMessage=" + (dialog != null ? dialog.top_message : -1) + " readInboxMaxId=" + (dialog != null ? dialog.read_inbox_max_id : -1) + " unread=" + (dialog != null ? dialog.unread_count : -1) + " isForum=" + isForum(dialogId) + " isMonoForum=" + isMonoForum(dialogId) + " inputPeer=" + (logInputPeer != null ? logInputPeer.getClass().getSimpleName() : "null"));
         if (dialog != null && dialog.top_message > maxId) {
             maxId = dialog.top_message;
         }
         if (maxId <= 0) {
+            FileLog.d("[GhostROI] readDialogOnInteract skipped: maxId=" + maxId + " <= 0");
             return;
         }
         final int readMaxId = maxId;
+        FileLog.d("[GhostROI] readDialogOnInteract will read up to " + readMaxId);
         Utilities.stageQueue.postRunnable(() -> {
             final ReadTask task = new ReadTask();
             task.dialogId = dialogId;
@@ -14805,6 +14815,7 @@ public class MessagesController extends BaseController implements NotificationCe
      * unless force is set (Read on Interact), so no caller or already queued task can leak a read.
      */
     private void completeReadTask(ReadTask task, boolean force) {
+        FileLog.d("[GhostROI] completeReadTask dialog=" + task.dialogId + " replyId=" + task.replyId + " monoForumPeerId=" + task.monoForumPeerId + " maxId=" + task.maxId + " maxDate=" + task.maxDate + " force=" + force + " blockedByGhost=" + (!force && SharedConfig.ghostDontReadMessages));
         if (!force && SharedConfig.ghostDontReadMessages) {
             return;
         }
@@ -14813,8 +14824,9 @@ public class MessagesController extends BaseController implements NotificationCe
             req.msg_id = (int) task.replyId;
             req.peer = getInputPeer(task.dialogId);
             req.read_max_id = task.maxId;
+            FileLog.d("[GhostROI] sending messages.readDiscussion msg_id=" + req.msg_id + " read_max_id=" + req.read_max_id);
             getConnectionsManager().sendRequest(req, (response, error) -> {
-
+                FileLog.d("[GhostROI] readDiscussion result response=" + (response != null ? response.getClass().getSimpleName() : "null") + " error=" + (error != null ? error.code + " " + error.text : "none"));
             });
         } else if (!DialogObject.isEncryptedDialog(task.dialogId)) {
             TLRPC.InputPeer inputPeer = getInputPeer(task.dialogId);
@@ -14837,7 +14849,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 request.max_id = task.maxId;
                 req = request;
             }
+            FileLog.d("[GhostROI] sending " + req.getClass().getSimpleName() + " for dialog=" + task.dialogId + " max_id=" + task.maxId + " inputPeer=" + (inputPeer != null ? inputPeer.getClass().getSimpleName() : "null"));
             getConnectionsManager().sendRequest(req, (response, error) -> {
+                FileLog.d("[GhostROI] " + req.getClass().getSimpleName() + " result response=" + (response != null ? response.getClass().getSimpleName() : "null") + " error=" + (error != null ? error.code + " " + error.text : "none"));
                 if (error == null) {
                     if (response instanceof TLRPC.TL_messages_affectedMessages) {
                         TLRPC.TL_messages_affectedMessages res = (TLRPC.TL_messages_affectedMessages) response;
@@ -15046,6 +15060,9 @@ public class MessagesController extends BaseController implements NotificationCe
             monoForumPeerId = 0;
         }
 
+        if (SharedConfig.ghostDontReadMessages) {
+            FileLog.d("[GhostROI] markDialogAsRead dialog=" + dialogId + " thread=" + threadId + " maxPositiveId=" + maxPositiveId + " maxDate=" + maxDate + " readNow=" + readNow + " createReadTask=" + createReadTask + " readOnInteract=" + SharedConfig.ghostReadOnInteract);
+        }
         if (createReadTask && SharedConfig.ghostDontReadMessages) {
             // Ghost Mode: local unread counters are already updated above for our own UI,
             // but we deliberately never queue or send messages.readHistory (etc.) to the server,
